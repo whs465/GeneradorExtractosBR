@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IOB Generador XML</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+
+<body class="p-6 font-sans">
+    <div class="mx-auto max-w-lg xl:max-w-xl">
+        <h1 class="text-xl mb-6 text-center">Generador de Extractos Bancarios</h1>
+        <!-- Zona de Drag & Drop con espacio fijo -->
+
+        <div id="dropzone" style="background-color:rgb(245, 241, 241);"
+            class="relative border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 min-h-[300px]">
+            <div id="drop-content" class="flex flex-col items-center justify-center h-full">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M7 16l-4-4m0 0l4-4m-4 4h18" />
+                </svg>
+                <p class="mt-2 text-gray-600">Arrastra y suelta el excel aqui!</p>
+                <p class="text-sm py-2 text-gray-500">O</p>
+                <button id="browseBtn" class="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white
+        rounded">Buscar archivo Excel</button>
+                <input type="file" id="file" accept=".xlsx" class="hidden" />
+            </div>
+
+        </div>
+        <!-- Área de resultado -->
+        <div id="result" class="mt-6 text-center">
+            <p id="processing" class="text-gray-700 mb-4 hidden">Procesando...</p>
+            <a id="downloadLink" class="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded hidden">Descargar
+                XML</a>
+        </div>
+        <!-- Pie de página fijo luego de dropzone -->
+        <div class="mt-8 text-center text-gray-500 text-sm">
+            © 2025 IOB Suite.❤️
+        </div>
+    </div>
+
+    <script>
+        const NAMESPACE = 'urn:iso:std:iso:20022:tech:xsd:camt.053.001.02';
+
+        function createEl(doc, tag, text) {
+            const el = doc.createElementNS(NAMESPACE, tag);
+            if (text !== undefined && text !== null) el.textContent = text;
+            return el;
+        }
+
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('file');
+        const browseBtn = document.getElementById('browseBtn');
+        const result = document.getElementById('result');
+        const processing = document.getElementById('processing');
+        const downloadLink = document.getElementById('downloadLink');
+
+        // Drag & Drop
+        dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-gray-500'); });
+        dropzone.addEventListener('dragleave', e => { e.preventDefault(); dropzone.classList.remove('border-gray-500'); });
+        dropzone.addEventListener('drop', e => {
+            e.preventDefault(); dropzone.classList.remove('border-gray-500');
+            if (e.dataTransfer.files.length) fileInput.files = e.dataTransfer.files;
+            handleFile();
+        });
+
+        // Browse button
+        browseBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', () => handleFile());
+
+        function handleFile() {
+            if (!fileInput.files.length) return;
+            result.classList.remove('hidden');
+            processing.textContent = 'Procesando...';
+            processExcel(fileInput.files[0]);
+        }
+
+        function processExcel(file) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                const data = new Uint8Array(e.target.result);
+                const wb = XLSX.read(data, { type: 'array' });
+                const sheet = wb.Sheets[wb.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(sheet, { raw: true });
+                if (!rows.length) return;
+                // Agrupar por extracto (cuenta|Moneda|Fecha Valor)
+                const groups = {};
+                rows.forEach(r => {
+                    const key = [r['cuenta'], r['Moneda'], r['Fecha Valor']].join('|');
+                    (groups[key] = groups[key] || []).push(r);
+                });
+                // Crear XML
+                const doc = document.implementation.createDocument(NAMESPACE, 'Document', null);
+                const root = doc.documentElement;
+                root.setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
+                const bk = createEl(doc, 'BkToCstmrStmt');
+                root.appendChild(bk);
+                // Cabecera
+                const firstRow = rows[0];
+                const valDate = firstRow['Fecha Valor'];
+                const dt = new Date(valDate);
+                const YY = dt.getFullYear().toString().slice(-2);
+                const MM = String(dt.getMonth() + 1).padStart(2, '0');
+                const DD = String(dt.getDate()).padStart(2, '0');
+                const yymmdd = YY + MM + DD;
+                const grp = createEl(doc, 'GrpHdr');
+                const msgIdText = `EX22683N${yymmdd}${yymmdd}1000.XML`;
+                const msgId = createEl(doc, 'MsgId', msgIdText);
+                const creDt = createEl(doc, 'CreDtTm', `${dt.getFullYear()}-${MM}-${DD}T10:00:30`);
+                const info = createEl(doc, 'AddtlInf', `Extracto de Cuenta de Depósito Fecha Inicial: ${dt.getFullYear()}-${MM}-${DD} Fecha Final: ${dt.getFullYear()}-${MM}-${DD}`);
+                [msgId, creDt, info].forEach(el => grp.appendChild(el));
+                bk.appendChild(grp);
+                // Cada extracto
+                Object.values(groups).forEach(groupRows => {
+                    const r0 = groupRows[0];
+                    const stmt = createEl(doc, 'Stmt');
+                    // Id
+                    const stmtId = createEl(doc, 'Id', `${r0['Moneda']}${String(r0['cuenta']).padStart(11, '0')}N${yymmdd}${yymmdd}1000`);
+                    stmt.appendChild(stmtId);
+                    // CreDtTm
+                    stmt.appendChild(createEl(doc, 'CreDtTm', `${dt.getFullYear()}-${MM}-${DD}T10:00:30`));
+                    // FrToDt
+                    const frto = createEl(doc, 'FrToDt');
+                    frto.appendChild(createEl(doc, 'FrDtTm', `${dt.getFullYear()}-${MM}-${DD}T00:00:00`));
+                    frto.appendChild(createEl(doc, 'ToDtTm', `${dt.getFullYear()}-${MM}-${DD}T23:59:59`));
+                    stmt.appendChild(frto);
+
+                    const acct = createEl(doc, 'Acct');
+                    const id = createEl(doc, 'Id');
+                    const othr = createEl(doc, 'Othr');
+                    othr.appendChild(createEl(doc, 'Id', String(r0['cuenta']).padStart(11, '0')));
+                    id.appendChild(othr);
+                    acct.appendChild(id);
+                    // Tipo y moneda
+                    acct.appendChild(createEl(doc, 'Tp')).appendChild(createEl(doc, 'Prtry', 'CUD'));
+                    acct.appendChild(createEl(doc, 'Ccy', r0['Moneda']));
+                    // Nombre de la cuenta
+                    acct.appendChild(createEl(doc, 'Nm', r0['Nombre Cuenta Débito 9.1.20']));
+                    // Servicer
+                    const svcr = createEl(doc, 'Svcr');
+                    const fin = createEl(doc, 'FinInstnId');
+                    const finO = createEl(doc, 'Othr');
+                    // Identificador de la institución financiera
+                    finO.appendChild(createEl(doc, 'Id', r0['nit_acreedor']));
+                    // Emisor de la institución financiera
+                    finO.appendChild(createEl(doc, 'Issr', r0['nombre_acreedor']));
+                    fin.appendChild(finO);
+                    svcr.appendChild(fin);
+                    // Sucursal
+                    const br = createEl(doc, 'BrnchId');
+                    br.appendChild(createEl(doc, 'Id', r0['otro_acreedor']));
+                    svcr.appendChild(br);
+                    acct.appendChild(svcr);
+                    stmt.appendChild(acct);
+                    // Balances
+                    ['OPBD', 'CLBD'].forEach((cd, i) => {
+                        const bal = createEl(doc, 'Bal');
+                        bal.appendChild(createEl(doc, 'Tp')).appendChild(createEl(doc, 'CdOrPrtry')).appendChild(createEl(doc, 'Cd', cd));
+                        const amt = createEl(doc, 'Amt', i === 0 ? r0['Saldo Inicial'] : r0['Saldo Final']);
+                        amt.setAttribute('Ccy', r0['Moneda']);
+                        bal.appendChild(amt);
+                        bal.appendChild(createEl(doc, 'CdtDbtInd', 'CRDT'));
+                        const dtNode = createEl(doc, 'Dt');
+                        dtNode.appendChild(createEl(doc, 'Dt', `${dt.getFullYear()}-${MM}-${DD}`));
+                        bal.appendChild(dtNode);
+                        stmt.appendChild(bal);
+                    });
+                    // TxsSummry
+                    const sum = createEl(doc, 'TxsSummry');
+                    const ttl = createEl(doc, 'TtlNtries');
+                    ttl.appendChild(createEl(doc, 'NbOfNtries', r0['Total Registros']));
+                    ttl.appendChild(createEl(doc, 'Sum', r0['Neto Deb/Cred']));
+                    ttl.appendChild(createEl(doc, 'TtlNetNtryAmt', r0['Neto Deb/Cred']));
+                    ttl.appendChild(createEl(doc, 'CdtDbtInd', 'DBIT'));
+                    sum.appendChild(ttl);
+                    const cdt = createEl(doc, 'TtlCdtNtries');
+                    cdt.appendChild(createEl(doc, 'NbOfNtries', r0['Total Reg Credito']));
+                    cdt.appendChild(createEl(doc, 'Sum', r0['Suma Creditos']));
+                    sum.appendChild(cdt);
+                    const dbt = createEl(doc, 'TtlDbtNtries');
+                    dbt.appendChild(createEl(doc, 'NbOfNtries', r0['Total Reg Debito']));
+                    dbt.appendChild(createEl(doc, 'Sum', r0['Suma Debitos']));
+                    sum.appendChild(dbt);
+                    stmt.appendChild(sum);
+                    groupRows.forEach(r => {
+                        const ntry = createEl(doc, 'Ntry');
+                        const am = createEl(doc, 'Amt', r['Valor Operación']); am.setAttribute('Ccy', r['Moneda']); ntry.appendChild(am);
+                        ntry.appendChild(createEl(doc, 'CdtDbtInd', r['Tipo Movimiento']));
+                        ntry.appendChild(createEl(doc, 'Sts', 'BOOK'));
+                        const bkdt = createEl(doc, 'BookgDt'); bkdt.appendChild(createEl(doc, 'DtTm', r['Fecha Operación'])); ntry.appendChild(bkdt);
+                        const val = createEl(doc, 'ValDt'); val.appendChild(createEl(doc, 'Dt', r['Fecha Valor'])); ntry.appendChild(val);
+                        const bkcd = createEl(doc, 'BkTxCd'); const pr = createEl(doc, 'Prtry'); pr.appendChild(createEl(doc, 'Cd', r['Concepto Bancario'])); pr.appendChild(createEl(doc, 'Issr', r['issuer_constant'])); bkcd.appendChild(pr); ntry.appendChild(bkcd);
+                        const details = createEl(doc, 'NtryDtls'); const txd = createEl(doc, 'TxDtls'); const refs = createEl(doc, 'Refs');
+                        refs.appendChild(createEl(doc, 'MsgId', r['Referencia Operación'])); refs.appendChild(createEl(doc, 'AcctSvcrRef', r['Nombre Transacción'])); refs.appendChild(createEl(doc, 'TxId', r['Secuencia'])); txd.appendChild(refs);
+                        const amtDtls = createEl(doc, 'AmtDtls'); const prtryAmt = createEl(doc, 'PrtryAmt'); prtryAmt.appendChild(createEl(doc, 'Tp', r['Tipo Movimiento']));
+                        const balAmt = createEl(doc, 'Amt', r['after_transaction_balance']); balAmt.setAttribute('Ccy', r['after_transaction_currency']); prtryAmt.appendChild(balAmt); amtDtls.appendChild(prtryAmt); txd.appendChild(amtDtls);
+                        const rlp = createEl(doc, 'RltdPties');
+                        // Debtor party
+                        const dbtr = createEl(doc, 'Dbtr');
+                        const dbtrId = createEl(doc, 'Id');
+                        const dbtrOrg = createEl(doc, 'OrgId');
+                        const dbtrOthr = createEl(doc, 'Othr');
+                        dbtrOthr.appendChild(createEl(doc, 'Id', r['nit_deudor']));
+                        dbtrOthr.appendChild(createEl(doc, 'Issr', r['nombre_deudor'])); // Issr for debtor
+                        dbtrOrg.appendChild(dbtrOthr);
+                        dbtrId.appendChild(dbtrOrg);
+                        dbtr.appendChild(dbtrId);
+                        const dbtrCtct = createEl(doc, 'CtctDtls');
+                        dbtrCtct.appendChild(createEl(doc, 'Othr', r['otro_deudor'])); // contact details
+                        dbtr.appendChild(dbtrCtct);
+                        rlp.appendChild(dbtr);
+                        // Debtor account
+                        const dbtrAcct = createEl(doc, 'DbtrAcct');
+                        const dbtrAcctId = createEl(doc, 'Id');
+                        const dbtrAcctO = createEl(doc, 'Othr');
+                        dbtrAcctO.appendChild(createEl(doc, 'Id', r['Cuenta Deudor (Sale)']));
+                        dbtrAcctId.appendChild(dbtrAcctO);
+                        dbtrAcct.appendChild(dbtrAcctId);
+                        dbtrAcct.appendChild(createEl(doc, 'Tp')).appendChild(createEl(doc, 'Prtry', r['Código Portafolio Deudor 1.1.10']));
+                        dbtrAcct.appendChild(createEl(doc, 'Ccy', r['cuenta_deudor_ccy']));
+                        rlp.appendChild(dbtrAcct);
+                        // Ultimate debtor
+                        const ultDbtr = createEl(doc, 'UltmtDbtr');
+                        ultDbtr.appendChild(createEl(doc, 'Nm', r['Nombre Tercero 9.1.0']));
+                        const ultId = createEl(doc, 'Id');
+                        const ultOrg = createEl(doc, 'OrgId');
+                        const ultOthr = createEl(doc, 'Othr');
+                        ultOthr.appendChild(createEl(doc, 'Id', r['nombre_acreedor_final_id']));
+                        ultOthr.appendChild(createEl(doc, 'Issr', r['nombre_acreedor_final_issuer']));
+                        ultOrg.appendChild(ultOthr);
+                        ultId.appendChild(ultOrg);
+                        ultDbtr.appendChild(ultId);
+                        rlp.appendChild(ultDbtr);
+                        // Creditor party
+                        const cdtr = createEl(doc, 'Cdtr');
+                        const cdtrId = createEl(doc, 'Id');
+                        const cdtrOrg = createEl(doc, 'OrgId');
+                        const cdtrOthr = createEl(doc, 'Othr');
+                        cdtrOthr.appendChild(createEl(doc, 'Id', r['nit_acreedor']));
+                        cdtrOthr.appendChild(createEl(doc, 'Issr', r['nombre_acreedor']));
+                        cdtrOrg.appendChild(cdtrOthr);
+                        cdtrId.appendChild(cdtrOrg);
+                        cdtr.appendChild(cdtrId);
+                        const cdtrCtct = createEl(doc, 'CtctDtls');
+                        cdtrCtct.appendChild(createEl(doc, 'Othr', r['otro_acreedor']));
+                        cdtr.appendChild(cdtrCtct);
+                        rlp.appendChild(cdtr);
+                        // Creditor account
+                        const cdtrAcct = createEl(doc, 'CdtrAcct');
+                        const cdtrAcctId = createEl(doc, 'Id');
+                        const cdtrAcctO = createEl(doc, 'Othr');
+                        cdtrAcctO.appendChild(createEl(doc, 'Id', r['Cuenta Acreedor (Entra)']));
+                        cdtrAcctId.appendChild(cdtrAcctO);
+                        cdtrAcct.appendChild(cdtrAcctId);
+                        cdtrAcct.appendChild(createEl(doc, 'Tp')).appendChild(createEl(doc, 'Prtry', r['Código Portafolio Acreedor 1.1.10']));
+                        cdtrAcct.appendChild(createEl(doc, 'Ccy', r['cuenta_acreedor_ccy']));
+                        rlp.appendChild(cdtrAcct);
+                        // Ultimate Creditor
+                        const ultCdt = createEl(doc, 'UltmtCdtr');
+                        ultCdt.appendChild(createEl(doc, 'Nm', r['nombre_acreedor_final']));
+                        const ultCId = createEl(doc, 'Id');
+                        const ultCOrg = createEl(doc, 'OrgId');
+                        const ultCOthr = createEl(doc, 'Othr');
+                        ultCOthr.appendChild(createEl(doc, 'Id', r['nombre_acreedor_final_id']));
+                        ultCOthr.appendChild(createEl(doc, 'Issr', r['nombre_acreedor_final_issuer']));
+                        ultCOrg.appendChild(ultCOthr);
+                        ultCId.appendChild(ultCOrg);
+                        ultCdt.appendChild(ultCId);
+                        rlp.appendChild(ultCdt);
+                        txd.appendChild(rlp);
+                        details.appendChild(txd);
+                        ntry.appendChild(details);
+                        ntry.appendChild(createEl(doc, 'AddtlNtryInf', r['recaudo_detail']));
+                        stmt.appendChild(ntry);
+                    });
+                    bk.appendChild(stmt);
+                });
+                // Serializar y descargar
+                const serializer = new XMLSerializer();
+                const xmlStr = '<?xml version="1.0" encoding="UTF-8"?>' + serializer.serializeToString(doc);
+                const blob = new Blob([xmlStr], { type: 'application/xml' });
+                const url = URL.createObjectURL(blob);
+
+                processing.classList.add('hidden');
+                downloadLink.href = url;
+                downloadLink.download = msgIdText;
+                downloadLink.textContent = msgIdText;
+                downloadLink.classList.remove('hidden');
+            };
+            reader.readAsArrayBuffer(file);
+        }
+    </script>
+</body>
