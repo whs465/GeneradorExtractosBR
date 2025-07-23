@@ -40,7 +40,7 @@
         </div>
         <!-- Pie de página fijo luego de dropzone -->
         <div class="mt-8 text-center text-gray-500 text-sm">
-            © 2025 IOB Suite.❤️
+            © 2025 IOB Suite.❤️ MHCP
         </div>
     </div>
 
@@ -288,9 +288,18 @@
 
                 processing.classList.add('hidden');
                 downloadLink.href = url;
-                downloadLink.download = msgIdText;
+                // Forzar descarga con nombre de archivo
+                downloadLink.setAttribute('download', msgIdText);
                 downloadLink.textContent = msgIdText;
                 downloadLink.classList.remove('hidden');
+                // Reiniciar estado tras la descarga
+                downloadLink.addEventListener('click', () => {
+                    setTimeout(() => {
+                        // Ocultar área de resultado y limpiar input
+                        result.classList.add('hidden');
+                        fileInput.value = null;
+                    }, 100);
+                });
             };
             reader.readAsArrayBuffer(file);
         }
