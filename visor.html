@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Visor XML</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+    }
+
+    h1 {
+      margin: .5rem 1rem 0;
+    }
+
+    #topBar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: .5rem 1rem;
+      background: #fafafa;
+      border-bottom: 1px solid #ddd;
+    }
+
+    /* ajusta h1 más pequeño para ocupar menos alto */
+    #topBar h1 {
+      margin: 0;
+      font-size: 1.5rem;
+    }
+
+    /* el fileSelect queda a la derecha */
+    #fileSelect {
+      display: flex;
+      align-items: center;
+      max-width: 60vw;
+      /* como mucho ocupe el 60% de ancho */
+    }
+
+    #fileInput {
+      order: 2;
+      flex: 0 0 auto;
+      /* nunca crece, nunca encoge */
+      width: 8rem;
+      /* suficiente para el botón */
+      overflow: hidden;
+      white-space: nowrap;
+      color: transparent;
+      /* oculta el nombre que pinta el navegador */
+    }
+
+    #fileInput::-webkit-file-upload-text {
+      visibility: hidden;
+    }
+
+    #fileInput::-webkit-file-upload-button {
+      visibility: visible;
+    }
+
+    #fileName {
+      order: 1;
+      flex: 1 1 auto;
+      /* ocupa todo el espacio sobrante */
+      font-family: monospace;
+      white-space: nowrap;
+      overflow-x: auto;
+      margin-right: .5rem;
+    }
+
+    /* 3) Asegúrate de que tus tablas no hagan wrap */
+    #header,
+    #detail {
+      margin: .5rem 1rem;
+      border: 1px solid #ccc;
+      overflow-y: auto;
+    }
+
+    #header {
+      height: 35vh;
+    }
+
+    #detail {
+      height: 65vh;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: auto;
+    }
+
+    th,
+    td {
+      padding: 8px 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      border: 1px solid #ddd;
+      vertical-align: middle;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #f5f5f5;
+      z-index: 1;
+    }
+
+    tr:hover {
+      background: #eef;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="topBar">
+    <h1>IOB Suite - Visor XML</h1>
+    <div id="fileSelect">
+      <span id="fileName"></span>
+      <input type="file" id="fileInput" accept=".xml" />
+    </div>
+  </div>
+
+  <div id="header"></div>
+  <div id="detail"></div>
+
+  <script>
+    // --- 1) Tus columnas completas desde C# ---
+    const painHeaderCols = [
+      "PmtInfId", "PmtMtd", "NbOfTxs", "CtrlSum",
+      "SvcLvl", "LclInstrm", "ReqdExctnDt", "DbtrNm", "DbtrAcctId",
+      "DbtrAgtInfo", "DbtrAgtMemberId", "DbtrAgtCountry",
+      "DbtrStreet", "DbtrTown", "DbtrCountryRes"
+    ];
+    const painDetailCols = [
+      "EndToEndId", "InstdAmt", "InstdAmtCcy",
+      "CdtrNm", "CdtrCountry", "CdtrOrgId", "CdtrAcctId",
+      "CdtrAcctNm", "CdtrAgtId", "CdtrAgtName", "CdtrAgtCountry", "RmtInf"
+    ];
+    const camtHeaderCols = [
+      "Cuenta", "Extracto", "Tipo Extracto", "Fecha Generación", "Fecha Inicial", "Fecha Final",
+      "constant", "Moneda", "Nombre Cuenta", "Nit", "name_tesoreria", "branch_br",
+      "type_initial", "currency_initial", "Saldo Inicial", "credit_debit_indicator_initial", "date_initial",
+      "type_final", "currency_final", "Saldo Final", "credit_debit_indicator_final", "date_final",
+      "Total Registros", "Suma Cantidades", "Neto Cred/Deb", "Naturaleza del Total",
+      "Total Reg Créditos", "Suma Créditos", "Total Reg Débitos", "Suma Débitos"
+    ];
+    const camtDetailCols = [
+      "Valor Operación", "Moneda", "Tipo Movimiento", "status",
+      "Fecha Operación", "Fecha Valor", "Concepto Bancario", "issuer_constant",
+      "Referencia Operación", "Nombre Transacción", "Secuencia", "Tipo Saldo",
+      "after_transaction_balance", "after_transaction_currency",
+      "nit_deudor", "nombre_deudor", "otro_deudor", "Cuenta Deudor (Sale)", "Código Portafolio Deudor 1.1.10",
+      "cuenta_deudor_ccy", "Nombre Tercero 9.1.0", "Cuenta Tercero", "Nombre Cuenta Débito 9.1.20",
+      "nit_acreedor", "nombre_acreedor", "otro_acreedor", "Cuenta Acreedor (Entra)",
+      "cuenta_acreedor_ccy", "Código Portafolio Acreedor 1.1.10", "nombre_acreedor_final",
+      "nombre_acreedor_final_id", "nombre_acreedor_final_issuer", "recaudo_detail"
+    ];
+
+    const fileInput = document.getElementById('fileInput');
+    const fileName = document.getElementById('fileName');
+
+    let currentHeaders = [], isPain = false;
+
+    // 2) Al cambiar el input:
+    fileInput.addEventListener('change', async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      // <<< aquí: vuelca el nombre completo >>>
+      fileName.textContent = file.name;
+
+      // luego el parseo normal:
+      const xml = await file.text();
+      const doc = new DOMParser().parseFromString(xml, 'application/xml');
+
+      isPain = !!doc.getElementsByTagName('PmtInf').length;
+      const hCols = isPain ? painHeaderCols : camtHeaderCols;
+      const dCols = isPain ? painDetailCols : camtDetailCols;
+
+      currentHeaders = Array.from(
+        isPain
+          ? doc.getElementsByTagName('PmtInf')
+          : doc.getElementsByTagName('Stmt')
+      );
+
+      renderTable('header', hCols, currentHeaders, showDetail);
+      document.getElementById('detail').innerHTML = '';
+    });
+
+    function renderTable(containerId, cols, nodes, onRowClick) {
+      const div = document.getElementById(containerId);
+      let html = '<table><thead><tr><th>#</th>'
+        + cols.map(c => `<th>${c}</th>`).join('')
+        + '</tr></thead><tbody>';
+
+      nodes.forEach((node, i) => {
+        html += `<tr data-idx="${i}"><td>${i + 1}</td>`
+          + cols.map(col => {
+            // 1) Índice siempre
+            if (col === (isPain ? 'PmtInfIndex' : 'StmtIndex')) {
+              return `<td>${i + 1}</td>`;
+            }
+            // 2) Si es CAMT, mapeo manual de cada columna:
+            if (!isPain) {
+              switch (col) {
+                case 'Cuenta': {
+                  // <Acct><Id><Othr><Id>
+                  const acct = node.getElementsByTagName('Acct')[0];
+                  const id = acct
+                    ?.getElementsByTagName('Id')[0]
+                    ?.getElementsByTagName('Othr')[0]
+                    ?.getElementsByTagName('Id')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${id}</td>`;
+                }
+
+                case 'Extracto': {
+                  // <Stmt><Id>
+                  const id = node
+                    .getElementsByTagName('Id')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${id}</td>`;
+                }
+
+                case 'Tipo Extracto': {
+                  // 15º carácter de <Id>
+                  const idText = node.getElementsByTagName('Id')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${idText.length > 14 ? idText[14] : ''}</td>`;
+                }
+
+                case 'Fecha Generación': {
+                  // <CreDtTm>
+                  const dt = node.getElementsByTagName('CreDtTm')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${dt}</td>`;
+                }
+
+                case 'Fecha Inicial': {
+                  // <FrToDt><FrDtTm>
+                  const fr = node.getElementsByTagName('FrToDt')[0]
+                    ?.getElementsByTagName('FrDtTm')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${fr}</td>`;
+                }
+
+                case 'Fecha Final': {
+                  // <FrToDt><ToDtTm>
+                  const to = node.getElementsByTagName('FrToDt')[0]
+                    ?.getElementsByTagName('ToDtTm')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${to}</td>`;
+                }
+
+                case 'constant': {
+                  // <Acct><Tp><Prtry>
+                  const pr = node.getElementsByTagName('Acct')[0]
+                    ?.getElementsByTagName('Tp')[0]
+                    ?.getElementsByTagName('Prtry')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${pr}</td>`;
+                }
+
+                case 'Moneda': {
+                  // <Acct><Ccy>
+                  const ccy = node.getElementsByTagName('Acct')[0]
+                    ?.getElementsByTagName('Ccy')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${ccy}</td>`;
+                }
+
+                case 'Nombre Cuenta': {
+                  // <Acct><Nm>
+                  const nm = node.getElementsByTagName('Acct')[0]
+                    ?.getElementsByTagName('Nm')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${nm}</td>`;
+                }
+
+                case 'Nit': {
+                  // <Svcr><FinInstnId><Othr><Id>
+                  const nit = node.getElementsByTagName('Svcr')[0]
+                    ?.getElementsByTagName('FinInstnId')[0]
+                    ?.getElementsByTagName('Othr')[0]
+                    ?.getElementsByTagName('Id')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${nit}</td>`;
+                }
+
+                case 'name_tesoreria': {
+                  // <Svcr><FinInstnId><Othr><Issr>
+                  const issuer = node.getElementsByTagName('Svcr')[0]
+                    ?.getElementsByTagName('FinInstnId')[0]
+                    ?.getElementsByTagName('Othr')[0]
+                    ?.getElementsByTagName('Issr')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${issuer}</td>`;
+                }
+
+                case 'branch_br': {
+                  // <Svcr><BrnchId><Id>
+                  const br = node.getElementsByTagName('Svcr')[0]
+                    ?.getElementsByTagName('BrnchId')[0]
+                    ?.getElementsByTagName('Id')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${br}</td>`;
+                }
+
+
+                case 'type_initial': {
+                  // buscamos el <Bal> con Tp/CdOrPrtry/Cd === 'OPBD'
+                  const bal = Array.from(node.getElementsByTagName('Bal'))
+                    .find(b => b
+                      .getElementsByTagName('Tp')[0]
+                      ?.getElementsByTagName('CdOrPrtry')[0]
+                      ?.getElementsByTagName('Cd')[0]
+                      ?.textContent.trim() === 'OPBD'
+                    );
+                  const cd = bal
+                    ?.getElementsByTagName('Tp')[0]
+                    ?.getElementsByTagName('CdOrPrtry')[0]
+                    ?.getElementsByTagName('Cd')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${cd}</td>`;
+                }
+
+                case 'currency_initial': {
+                  const bal = Array.from(node.getElementsByTagName('Bal'))
+                    .find(b => b
+                      .getElementsByTagName('Tp')[0]
+                      ?.getElementsByTagName('CdOrPrtry')[0]
+                      ?.getElementsByTagName('Cd')[0]
+                      ?.textContent.trim() === 'OPBD'
+                    );
+                  const amt = bal
+                    ?.getElementsByTagName('Amt')[0];
+                  return `<td>${amt?.getAttribute('Ccy') || ''}</td>`;
+                }
+
+                case 'Saldo Inicial': {
+                  const bal = Array.from(node.getElementsByTagName('Bal'))
+                    .find(b => b
+                      .getElementsByTagName('Tp')[0]
+                      ?.getElementsByTagName('CdOrPrtry')[0]
+                      ?.getElementsByTagName('Cd')[0]
+                      ?.textContent.trim() === 'OPBD'
+                    );
+                  const amtEl = bal?.getElementsByTagName('Amt')[0];
+                  // formatearlo usando tu utilitaria
+                  return `<td style="text-align:right">${formatAmountCell(amtEl)}</td>`;
+                }
+                case 'credit_debit_indicator_initial': {
+                  const bal = Array
+                    .from(node.getElementsByTagName('Bal'))
+                    .find(b =>
+                      b.getElementsByTagName('Tp')[0]
+                        ?.getElementsByTagName('CdOrPrtry')[0]
+                        ?.getElementsByTagName('Cd')[0]
+                        ?.textContent.trim() === 'OPBD'
+                    );
+                  const ind = bal
+                    ?.getElementsByTagName('CdtDbtInd')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${ind}</td>`;
+                }
+
+                // —– Nuevo: fecha inicial (OPBD) —–
+                case 'date_initial': {
+                  const bal = Array
+                    .from(node.getElementsByTagName('Bal'))
+                    .find(b =>
+                      b.getElementsByTagName('Tp')[0]
+                        ?.getElementsByTagName('CdOrPrtry')[0]
+                        ?.getElementsByTagName('Cd')[0]
+                        ?.textContent.trim() === 'OPBD'
+                    );
+                  const dt = bal
+                    ?.getElementsByTagName('Dt')[0]
+                    ?.getElementsByTagName('Dt')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${dt}</td>`;
+                }
+
+                case 'type_final': {
+                  const bal = Array.from(node.getElementsByTagName('Bal'))
+                    .find(b =>
+                      b.getElementsByTagName('Tp')[0]
+                        ?.getElementsByTagName('CdOrPrtry')[0]
+                        ?.getElementsByTagName('Cd')[0]
+                        ?.textContent.trim() === 'CLBD'
+                    );
+                  const cd = bal
+                    ?.getElementsByTagName('Tp')[0]
+                    ?.getElementsByTagName('CdOrPrtry')[0]
+                    ?.getElementsByTagName('Cd')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${cd}</td>`;
+                }
+
+                // —– currency_final —–
+                case 'currency_final': {
+                  const bal = Array.from(node.getElementsByTagName('Bal'))
+                    .find(b =>
+                      b.getElementsByTagName('Tp')[0]
+                        ?.getElementsByTagName('CdOrPrtry')[0]
+                        ?.getElementsByTagName('Cd')[0]
+                        ?.textContent.trim() === 'CLBD'
+                    );
+                  const amt = bal?.getElementsByTagName('Amt')[0];
+                  return `<td>${amt?.getAttribute('Ccy') || ''}</td>`;
+                }
+
+                // —– Saldo Final —–
+                case 'Saldo Final': {
+                  const bal = Array.from(node.getElementsByTagName('Bal'))
+                    .find(b =>
+                      b.getElementsByTagName('Tp')[0]
+                        ?.getElementsByTagName('CdOrPrtry')[0]
+                        ?.getElementsByTagName('Cd')[0]
+                        ?.textContent.trim() === 'CLBD'
+                    );
+                  const amtEl = bal?.getElementsByTagName('Amt')[0];
+                  return `<td style="text-align:right">${formatAmountCell(amtEl)}</td>`;
+                }
+
+                // —– indicador final (CLBD) —–
+                case 'credit_debit_indicator_final': {
+                  const bal = Array.from(node.getElementsByTagName('Bal'))
+                    .find(b =>
+                      b.getElementsByTagName('Tp')[0]
+                        ?.getElementsByTagName('CdOrPrtry')[0]
+                        ?.getElementsByTagName('Cd')[0]
+                        ?.textContent.trim() === 'CLBD'
+                    );
+                  const ind = bal
+                    ?.getElementsByTagName('CdtDbtInd')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${ind}</td>`;
+                }
+
+                // —– fecha final (CLBD) —–
+                case 'date_final': {
+                  const bal = Array.from(node.getElementsByTagName('Bal'))
+                    .find(b =>
+                      b.getElementsByTagName('Tp')[0]
+                        ?.getElementsByTagName('CdOrPrtry')[0]
+                        ?.getElementsByTagName('Cd')[0]
+                        ?.textContent.trim() === 'CLBD'
+                    );
+                  const dt = bal
+                    ?.getElementsByTagName('Dt')[0]
+                    ?.getElementsByTagName('Dt')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${dt}</td>`;
+                }
+                case 'Total Registros': {
+                  // <TxsSummry><TtlNtries><NbOfNtries>
+                  const ttl = node.getElementsByTagName('TtlNtries')[0];
+                  const nb = ttl?.getElementsByTagName('NbOfNtries')[0]
+                    ?.textContent.trim() || '0';
+                  return `<td>${nb}</td>`;
+                }
+
+                case 'Suma Cantidades': {
+                  // <TxsSummry><TtlNtries><Sum>
+                  const ttl = node.getElementsByTagName('TtlNtries')[0];
+                  const sum = ttl?.getElementsByTagName('Sum')[0]
+                    ?.textContent.trim() || '0';
+                  // formatear importe
+                  return `<td style="text-align:right">${formatAmountCell(
+                    { textContent: sum }
+                  )}</td>`;
+                }
+
+                case 'Neto Cred/Deb': {
+                  // <TxsSummry><TtlNtries><TtlNetNtryAmt>
+                  const ttl = node.getElementsByTagName('TtlNtries')[0];
+                  const net = ttl?.getElementsByTagName('TtlNetNtryAmt')[0]
+                    ?.textContent.trim() || '0';
+                  return `<td style="text-align:right">${formatAmountCell(
+                    { textContent: net }
+                  )}</td>`;
+                }
+
+                case 'Naturaleza del Total': {
+                  // <TxsSummry><TtlNtries><CdtDbtInd>
+                  const ttl = node.getElementsByTagName('TtlNtries')[0];
+                  const ind = ttl?.getElementsByTagName('CdtDbtInd')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${ind}</td>`;
+                }
+
+                case 'Total Reg Créditos': {
+                  // <TxsSummry><TtlCdtNtries><NbOfNtries>
+                  const cdt = node.getElementsByTagName('TtlCdtNtries')[0];
+                  const nb = cdt?.getElementsByTagName('NbOfNtries')[0]
+                    ?.textContent.trim() || '0';
+                  return `<td>${nb}</td>`;
+                }
+
+                case 'Suma Créditos': {
+                  // <TxsSummry><TtlCdtNtries><Sum>
+                  const cdt = node.getElementsByTagName('TtlCdtNtries')[0];
+                  const sum = cdt?.getElementsByTagName('Sum')[0]
+                    ?.textContent.trim() || '0';
+                  return `<td style="text-align:right">${formatAmountCell(
+                    { textContent: sum }
+                  )}</td>`;
+                }
+
+                case 'Total Reg Débitos': {
+                  // <TxsSummry><TtlDbtNtries><NbOfNtries>
+                  const dbt = node.getElementsByTagName('TtlDbtNtries')[0];
+                  const nb = dbt?.getElementsByTagName('NbOfNtries')[0]
+                    ?.textContent.trim() || '0';
+                  return `<td>${nb}</td>`;
+                }
+
+                case 'Suma Débitos': {
+                  // <TxsSummry><TtlDbtNtries><Sum>
+                  const dbt = node.getElementsByTagName('TtlDbtNtries')[0];
+                  const sum = dbt?.getElementsByTagName('Sum')[0]
+                    ?.textContent.trim() || '0';
+                  return `<td style="text-align:right">${formatAmountCell(
+                    { textContent: sum }
+                  )}</td>`;
+                }
+              }
+            } else {
+              // es un pain
+              switch (col) {
+                case 'PmtInfIndex':
+                  return `<td>${i + 1}</td>`;
+                case 'PmtInfId':
+                  return `<td>${node.getElementsByTagName('PmtInfId')[0]?.textContent || ''}</td>`;
+                case 'PmtMtd':
+                  return `<td>${node.getElementsByTagName('PmtMtd')[0]?.textContent || ''}</td>`;
+                case 'NbOfTxs':
+                  return `<td>${node.getElementsByTagName('NbOfTxs')[0]?.textContent || ''}</td>`;
+                case 'CtrlSum': {
+                  const cs = node.getElementsByTagName('CtrlSum')[0];
+                  return `<td style="text-align:right">${formatAmountCell(cs)}</td>`;
+                }
+                case 'SvcLvl': {
+                  // <PmtTpInf><SvcLvl><Cd>
+                  const tpInf = node.getElementsByTagName('PmtTpInf')[0];
+                  const svc = tpInf
+                    ?.getElementsByTagName('SvcLvl')[0]
+                    ?.getElementsByTagName('Cd')[0]
+                    ?.textContent.trim()
+                    || '';
+                  return `<td>${svc}</td>`;
+                }
+
+                case 'DbtrAgtInfo': {
+                  // <DbtrAgt><FinInstnId><BIC>
+                  const agt = node.getElementsByTagName('DbtrAgt')[0];
+                  const fin = agt?.getElementsByTagName('FinInstnId')[0];
+                  const bic = fin?.getElementsByTagName('BIC')[0];
+                  const memberId = bic?.textContent.trim() || '';
+                  return `<td>${memberId}</td>`;
+                }
+
+                case 'DbtrAgtMemberId': {
+                  // <DbtrAgt><FinInstnId><ClrSysMmbId><MmbId>
+                  const agt = node.getElementsByTagName('DbtrAgt')[0];
+                  const fin = agt?.getElementsByTagName('FinInstnId')[0];
+                  const clr = fin?.getElementsByTagName('ClrSysMmbId')[0];
+                  const mmb = clr?.getElementsByTagName('MmbId')[0];
+                  const idTxt = mmb?.textContent.trim() || '';
+                  return `<td>${idTxt}</td>`;
+                }
+                case 'ReqdExctnDt':
+                  return `<td>${node.getElementsByTagName('ReqdExctnDt')[0]?.textContent || ''}</td>`;
+                case 'DbtrNm':
+                  return `<td>${node.getElementsByTagName('Dbtr')[0]
+                    ?.getElementsByTagName('Nm')[0]
+                    ?.textContent || ''}</td>`;
+                case 'DbtrAcctId': {
+                  // IBAN vs Othr.Id
+                  const svc = node.getElementsByTagName('SvcLvl')[0]?.textContent;
+                  if (svc === 'SEPA') {
+                    return `<td>${node.getElementsByTagName('IBAN')[0]?.textContent || ''}</td>`;
+                  } else {
+                    return `<td>${node.getElementsByTagName('Othr')[0]
+                      ?.getElementsByTagName('Id')[0]
+                      ?.textContent || ''}</td>`;
+                  }
+                }
+                case 'DbtrAgtInfo': {
+                  const svc = node.getElementsByTagName('SvcLvl')[0]?.textContent;
+                  if (svc === 'SEPA') {
+                    return `<td>${node.getElementsByTagName('DbtrAgt')[0]
+                      ?.getElementsByTagName('Nm')[0]
+                      ?.textContent || ''}</td>`;
+                  } else {
+                    return `<td>${node.getElementsByTagName('BIC')[0]?.textContent || ''}</td>`;
+                  }
+                }
+                case 'DbtrAgtCountry': {
+                  // <DbtrAgt><FinInstnId><PstlAdr><Ctry>
+                  const agt = node.getElementsByTagName('DbtrAgt')[0];
+                  const fin = agt?.getElementsByTagName('FinInstnId')[0];
+                  const adr = fin?.getElementsByTagName('PstlAdr')[0];
+                  const ctr = adr?.getElementsByTagName('Ctry')[0];
+                  const country = ctr?.textContent.trim() || '';
+                  return `<td>${country}</td>`;
+                }
+                case 'LclInstrm':
+                  return `<td>${node.getElementsByTagName('Prtry')[0]?.textContent || ''}</td>`;
+                case 'DbtrStreet':
+                  return `<td>${node.getElementsByTagName('StrtNm')[0]?.textContent || ''}</td>`;
+                case 'DbtrTown':
+                  return `<td>${node.getElementsByTagName('TwnNm')[0]?.textContent || ''}</td>`;
+                case 'DbtrCountryRes':
+                  return `<td>${node.getElementsByTagName('CtryOfRes')[0]?.textContent || ''}</td>`;
+                default:
+                  return `<td></td>`;
+              }
+            }
+          }).join('') +
+          `</tr>`;
+      });
+
+      html += '</tbody></table>';
+      div.innerHTML = html;
+
+      // bind click
+      div.querySelectorAll('tr[data-idx]').forEach(tr =>
+        tr.addEventListener('click', () => onRowClick(+tr.dataset.idx))
+      );
+    }
+
+    function formatAmountCell(el) {
+      if (!el) return '';
+      // texto crudo, sustituimos coma por punto si existiera
+      const raw = parseFloat(el.textContent.trim().replace(',', '.')) || 0;
+      // formateo en español: separador de miles '.', decimales ','
+      return raw.toLocaleString('es-ES', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+
+
+    function showDetail(idx) {
+      const node = currentHeaders[idx];
+      const cols = isPain ? painDetailCols : camtDetailCols;
+
+      let html = '<table><thead><tr><th>#</th>' +
+        cols.map(c => `<th>${c}</th>`).join('') +
+        '</tr></thead><tbody>';
+
+      const items = isPain
+        ? Array.from(node.getElementsByTagName('CdtTrfTxInf'))
+        : Array.from(node.getElementsByTagName('Ntry'));
+
+      items.forEach((it, i) => {
+        html += `<tr><td>${i + 1}</td>` +
+          cols.map(col => {
+            if (isPain) {
+              switch (col) {
+                case 'EndToEndId': {
+                  const e2e = it.getElementsByTagName('PmtId')[0]
+                    ?.getElementsByTagName('EndToEndId')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${e2e}</td>`;
+                }
+                case 'InstdAmt': {
+                  // ahora sí usamos <InstdAmt>
+                  const inst = it.getElementsByTagName('InstdAmt')[0];
+                  return `<td style="text-align:right">${formatAmountCell(inst)}</td>`;
+                }
+                case 'InstdAmtCcy': {
+                  // moneda también en <InstdAmt>
+                  const inst = it.getElementsByTagName('InstdAmt')[0];
+                  return `<td>${inst?.getAttribute('Ccy') || ''}</td>`;
+                }
+
+                case 'CdtrNm': {
+                  // <Cdtr><Nm>
+                  const cdtr = it.getElementsByTagName('Cdtr')[0];
+                  const nm = cdtr
+                    ?.getElementsByTagName('Nm')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${nm}</td>`;
+                }
+
+                case 'CdtrCountry': {
+                  // <Cdtr><PstlAdr><Ctry>
+                  const cdtr = it.getElementsByTagName('Cdtr')[0];
+                  const pstlAdr = cdtr
+                    ?.getElementsByTagName('PstlAdr')[0];
+                  const ctry = pstlAdr
+                    ?.getElementsByTagName('Ctry')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${ctry}</td>`;
+                }
+
+                case 'CdtrOrgId': {
+                  // <Cdtr><Id><OrgId><Othr><Id>
+                  const cdtr = it.getElementsByTagName('Cdtr')[0];
+                  const idNode = cdtr
+                    ?.getElementsByTagName('Id')[0]
+                    ?.getElementsByTagName('OrgId')[0]
+                    ?.getElementsByTagName('Othr')[0]
+                    ?.getElementsByTagName('Id')[0];
+                  const idText = idNode?.textContent.trim() || '';
+                  return `<td>${idText}</td>`;
+                }
+
+                case 'CdtrAcctId': {
+                  // detectamos el Service Level de este PmtInf
+                  const svc = node
+                    .getElementsByTagName('SvcLvl')[0]
+                    ?.textContent.trim() || '';
+
+                  const acct = it.getElementsByTagName('CdtrAcct')[0];
+                  let result = '';
+
+                  if (svc === 'SEPA') {
+                    // SEPA → IBAN
+                    result = acct
+                      ?.getElementsByTagName('IBAN')[0]
+                      ?.textContent.trim() || '';
+                  } else {
+                    // NO-SEPA → <Othr><Id>
+                    result = acct
+                      ?.getElementsByTagName('Othr')[0]
+                      ?.getElementsByTagName('Id')[0]
+                      ?.textContent.trim() || '';
+                  }
+
+                  return `<td>${result}</td>`;
+                }
+
+                case 'CdtrAcctNm': {
+                  // <CdtrAcct><Nm>
+                  const nm = it.getElementsByTagName('CdtrAcct')[0]
+                    ?.getElementsByTagName('Nm')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${nm}</td>`;
+                }
+
+                case 'CdtrAgtId': {
+                  // determinamos el Service Level del PmtInf padre
+                  const svc = node.getElementsByTagName('SvcLvl')[0]?.textContent.trim() || '';
+                  // pescamos el FinInstnId de este CdtTrfTxInf
+                  const fin = it.getElementsByTagName('CdtrAgt')[0]
+                    ?.getElementsByTagName('FinInstnId')[0];
+                  let result = '';
+
+                  if (svc === 'SEPA') {
+                    // en SEPA mostramos el <Nm>
+                    result = fin
+                      ?.getElementsByTagName('Nm')[0]
+                      ?.textContent.trim() || '';
+                  } else {
+                    // en no‑SEPA primero intentamos BIC
+                    const bicNode = fin?.getElementsByTagName('BIC')[0];
+                    if (bicNode?.textContent.trim()) {
+                      result = bicNode.textContent.trim();
+                    } else {
+                      // si no hay BIC, buscamos ClrSysMmbId → MmbId
+                      const mmbNode = fin
+                        ?.getElementsByTagName('ClrSysMmbId')[0]
+                        ?.getElementsByTagName('MmbId')[0];
+                      result = mmbNode?.textContent.trim() || '';
+                    }
+                  }
+
+                  return `<td>${result}</td>`;
+                }
+                case 'CdtrAgtName': {
+                  // <CdtrAgt><FinInstnId><Nm>
+                  const name = it.getElementsByTagName('CdtrAgt')[0]
+                    ?.getElementsByTagName('FinInstnId')[0]
+                    ?.getElementsByTagName('Nm')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${name}</td>`;
+                }
+
+                case 'CdtrAgtCountry': {
+                  // <CdtrAgt><FinInstnId><PstlAdr><Ctry>
+                  const country = it.getElementsByTagName('CdtrAgt')[0]
+                    ?.getElementsByTagName('FinInstnId')[0]
+                    ?.getElementsByTagName('PstlAdr')[0]
+                    ?.getElementsByTagName('Ctry')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${country}</td>`;
+                }
+                case 'RmtInf': {
+                  const arr = Array.from(it.getElementsByTagName('Ustrd'))
+                    .map(u => u.textContent.trim());
+                  return `<td>${arr.join(' | ')}</td>`;
+                }
+                default: {
+                  // etiquetas que casan exactamente
+                  const el = it.getElementsByTagName(col)[0];
+                  return `<td>${el?.textContent.trim() || ''}</td>`;
+                }
+              }
+            }
+            else {
+              // === CAMT: mapeo específico ===
+              switch (col) {
+                case 'Valor Operación': {
+                  // toma el primer <Amt>, formatea y alinea a la derecha
+                  const amtEl = it.getElementsByTagName('Amt')[0];
+                  return `<td style="text-align:right">${formatAmountCell(amtEl)}</td>`;
+                }
+                case 'Moneda': {
+                  // lee el atributo Ccy del mismo <Amt>
+                  const amtEl = it.getElementsByTagName('Amt')[0];
+                  return `<td>${amtEl?.getAttribute('Ccy') || ''}</td>`;
+                }
+                case 'Tipo Movimiento': {
+                  // Solo dentro de este <Ntry>, buscamos su <CdtDbtInd> hijo directo
+                  // Con :scope nos aseguramos de no pillar ninguno más abajo en el DOM
+                  const el = it.querySelector(':scope > CdtDbtInd');
+                  return `<td>${el?.textContent.trim() || ''}</td>`;
+                }
+                case 'status':    // o 'Status' según tu camtDetailCols
+                case 'Status': {
+                  // Captura el <Sts> hijo directo de <Ntry>
+                  const st = it.querySelector(':scope > Sts');
+                  return `<td>${st?.textContent.trim() || ''}</td>`;
+                }
+                case 'Fecha Operación': {
+                  // <Ntry><BookgDt><DtTm>
+                  const bd = it.getElementsByTagName('BookgDt')[0];
+                  const dt = bd?.getElementsByTagName('DtTm')[0];
+                  return `<td>${dt?.textContent.trim() || ''}</td>`;
+                }
+
+                case 'Fecha Valor': {
+                  // <Ntry><ValDt><Dt>
+                  const vd = it.getElementsByTagName('ValDt')[0];
+                  const dt = vd?.getElementsByTagName('Dt')[0];
+                  return `<td>${dt?.textContent.trim() || ''}</td>`;
+                }
+
+                case 'Concepto Bancario': {
+                  const bk = it.getElementsByTagName('BkTxCd')[0];
+                  const pr = bk?.getElementsByTagName('Prtry')[0];
+                  const cd = pr?.getElementsByTagName('Cd')[0];
+                  return `<td>${cd?.textContent.trim() || ''}</td>`;
+                }
+
+                case 'issuer_constant': {
+                  const bk = it.getElementsByTagName('BkTxCd')[0];
+                  const pr = bk?.getElementsByTagName('Prtry')[0];
+                  const Issr = pr?.getElementsByTagName('Issr')[0];
+                  return `<td>${Issr?.textContent.trim() || ''}</td>`;
+                }
+                case 'Referencia Operación': {
+                  // <NtryDtls><TxDtls><Refs><MsgId>
+                  const ntryDtls = it.getElementsByTagName('NtryDtls')[0];
+                  const txDtls = ntryDtls?.getElementsByTagName('TxDtls')[0];
+                  const refs = txDtls?.getElementsByTagName('Refs')[0];
+                  const msg = refs?.getElementsByTagName('MsgId')[0];
+                  return `<td>${msg?.textContent.trim() || ''}</td>`;
+                }
+                case 'Nombre Transacción': {
+                  // <NtryDtls><TxDtls><Refs><AcctSvcrRef>
+                  const ntryDtls = it.getElementsByTagName('NtryDtls')[0];
+                  const txDtls = ntryDtls?.getElementsByTagName('TxDtls')[0];
+                  const refs = txDtls?.getElementsByTagName('Refs')[0];
+                  const acctSvcrRef = refs?.getElementsByTagName('AcctSvcrRef')[0];
+                  return `<td>${acctSvcrRef?.textContent.trim() || ''}</td>`;
+                }
+
+                case 'Secuencia':
+                  return `<td>${it.querySelector('TxDtls > Refs > TxId')?.textContent || ''}</td>`;
+
+                case 'Tipo Saldo': {
+                  // <NtryDtls><TxDtls><AmtDtls><PrtryAmt><Tp>
+                  const ntryDtls = it.getElementsByTagName('NtryDtls')[0];
+                  const txDtls = ntryDtls?.getElementsByTagName('TxDtls')[0];
+                  const amtDtls = txDtls?.getElementsByTagName('AmtDtls')[0];
+                  const prtryAmt = amtDtls?.getElementsByTagName('PrtryAmt')[0];
+                  const tp = prtryAmt?.getElementsByTagName('Tp')[0];
+                  return `<td>${tp?.textContent.trim() || ''}</td>`;
+                }
+                case 'after_transaction_balance': {
+                  // <NtryDtls><TxDtls><AmtDtls><PrtryAmt><Amt>
+                  const prtryAmt = it
+                    .getElementsByTagName('AmtDtls')[0]
+                    ?.getElementsByTagName('PrtryAmt')[0];
+                  const amtEl = prtryAmt
+                    ?.getElementsByTagName('Amt')[0];
+                  // reutilizamos tu utilidad para formatear
+                  return `<td style="text-align:right">${formatAmountCell(amtEl)}</td>`;
+                }
+
+                case 'after_transaction_currency': {
+                  // <NtryDtls><TxDtls><AmtDtls><PrtryAmt><Amt Ccy="XXX">
+                  const prtryAmt = it
+                    .getElementsByTagName('AmtDtls')[0]
+                    ?.getElementsByTagName('PrtryAmt')[0];
+                  const amtEl = prtryAmt
+                    ?.getElementsByTagName('Amt')[0];
+                  // sacamos el atributo Ccy
+                  const ccy = amtEl?.getAttribute('Ccy') || '';
+                  return `<td>${ccy}</td>`;
+                }
+                case 'nit_deudor': {
+                  const ntryDtls = it.getElementsByTagName('NtryDtls')[0];
+                  const txDtls = ntryDtls?.getElementsByTagName('TxDtls')[0];
+                  const parties = txDtls?.getElementsByTagName('RltdPties')[0];
+                  const dbtr = parties?.getElementsByTagName('Dbtr')[0];
+                  const id = dbtr
+                    ?.getElementsByTagName('Id')[0]
+                    ?.getElementsByTagName('OrgId')[0]
+                    ?.getElementsByTagName('Othr')[0]
+                    ?.getElementsByTagName('Id')[0];
+                  return `<td>${id?.textContent.trim() || ''}</td>`;
+                }
+                case 'nombre_deudor': {
+                  const ntryDtls = it.getElementsByTagName('NtryDtls')[0];
+                  const txDtls = ntryDtls?.getElementsByTagName('TxDtls')[0];
+                  const parties = txDtls?.getElementsByTagName('RltdPties')[0];
+                  const dbtr = parties?.getElementsByTagName('Dbtr')[0];
+                  const Issr = dbtr
+                    ?.getElementsByTagName('Id')[0]
+                    ?.getElementsByTagName('OrgId')[0]
+                    ?.getElementsByTagName('Othr')[0]
+                    ?.getElementsByTagName('Issr')[0];
+                  return `<td>${Issr?.textContent.trim() || ''}</td>`;
+                }
+                case 'otro_deudor': {
+                  const ntryDtls = it.getElementsByTagName('NtryDtls')[0];
+                  const txDtls = ntryDtls?.getElementsByTagName('TxDtls')[0];
+                  const parties = txDtls?.getElementsByTagName('RltdPties')[0];
+                  const dbtr = parties?.getElementsByTagName('Dbtr')[0];
+                  const Othr = dbtr
+                    ?.getElementsByTagName('CtctDtls')[0]
+                    ?.getElementsByTagName('Othr')[0];
+                  return `<td>${Othr?.textContent.trim() || ''}</td>`;
+                }
+                case 'Cuenta Deudor (Sale)': {
+                  const id = it
+                    .getElementsByTagName('NtryDtls')[0]
+                    ?.getElementsByTagName('TxDtls')[0]
+                    ?.getElementsByTagName('RltdPties')[0]
+                    ?.getElementsByTagName('DbtrAcct')[0]
+                    ?.getElementsByTagName('Id')[0]
+                    ?.getElementsByTagName('Othr')[0]
+                    ?.getElementsByTagName('Id')[0]
+                    ?.textContent.trim()
+                    || '';
+                  return `<td>${id}</td>`;
+                }
+                case 'Código Portafolio Deudor 1.1.10': {
+                  // <NtryDtls><TxDtls><RltdPties><DbtrAcct><Tp><Prtry>
+                  const prtry = it
+                    .getElementsByTagName('NtryDtls')[0]
+                    ?.getElementsByTagName('TxDtls')[0]
+                    ?.getElementsByTagName('RltdPties')[0]
+                    ?.getElementsByTagName('DbtrAcct')[0]
+                    ?.getElementsByTagName('Tp')[0]
+                    ?.getElementsByTagName('Prtry')[0]
+                    ?.textContent.trim()
+                    || '';
+                  return `<td>${prtry}</td>`;
+                } case 'cuenta_deudor_ccy': {
+                  // <NtryDtls><TxDtls><RltdPties><DbtrAcct><Ccy>
+                  const ccy = it
+                    .getElementsByTagName('NtryDtls')[0]
+                    ?.getElementsByTagName('TxDtls')[0]
+                    ?.getElementsByTagName('RltdPties')[0]
+                    ?.getElementsByTagName('DbtrAcct')[0]
+                    ?.getElementsByTagName('Ccy')[0]
+                    ?.textContent.trim()
+                    || '';
+                  return `<td>${ccy}</td>`;
+                }
+
+                case 'Nombre Tercero 9.1.0': {
+                  // <NtryDtls><TxDtls><RltdPties><UltmtDbtr><Nm>
+                  const nm = it
+                    .getElementsByTagName('NtryDtls')[0]
+                    ?.getElementsByTagName('TxDtls')[0]
+                    ?.getElementsByTagName('RltdPties')[0]
+                    ?.getElementsByTagName('UltmtDbtr')[0]
+                    ?.getElementsByTagName('Nm')[0]
+                    ?.textContent.trim()
+                    || '';
+                  return `<td>${nm}</td>`;
+                }
+
+                case 'Cuenta Tercero': {
+                  // <NtryDtls><TxDtls><RltdPties><UltmtDbtr><Id><OrgId><Othr><Id>
+                  const id = it
+                    .getElementsByTagName('NtryDtls')[0]
+                    ?.getElementsByTagName('TxDtls')[0]
+                    ?.getElementsByTagName('RltdPties')[0]
+                    ?.getElementsByTagName('UltmtDbtr')[0]
+                    ?.getElementsByTagName('Id')[0]
+                    ?.getElementsByTagName('OrgId')[0]
+                    ?.getElementsByTagName('Othr')[0]
+                    ?.getElementsByTagName('Id')[0]
+                    ?.textContent.trim()
+                    || '';
+                  return `<td>${id}</td>`;
+                }
+
+                case 'Nombre Cuenta Débito 9.1.20': {
+                  // <NtryDtls><TxDtls><RltdPties><UltmtDbtr><Id><OrgId><Othr><Issr>
+                  const issr = it
+                    .getElementsByTagName('NtryDtls')[0]
+                    ?.getElementsByTagName('TxDtls')[0]
+                    ?.getElementsByTagName('RltdPties')[0]
+                    ?.getElementsByTagName('UltmtDbtr')[0]
+                    ?.getElementsByTagName('Id')[0]
+                    ?.getElementsByTagName('OrgId')[0]
+                    ?.getElementsByTagName('Othr')[0]
+                    ?.getElementsByTagName('Issr')[0]
+                    ?.textContent.trim()
+                    || '';
+                  return `<td>${issr}</td>`;
+                }
+                case 'nit_acreedor': {
+                  // <NtryDtls><TxDtls><RltdPties><Cdtr><Id><OrgId><Othr><Id>
+                  const id = it
+                    .getElementsByTagName('NtryDtls')[0]
+                    ?.getElementsByTagName('TxDtls')[0]
+                    ?.getElementsByTagName('RltdPties')[0]
+                    ?.getElementsByTagName('Cdtr')[0]
+                    ?.getElementsByTagName('Id')[0]
+                    ?.getElementsByTagName('OrgId')[0]
+                    ?.getElementsByTagName('Othr')[0]
+                    ?.getElementsByTagName('Id')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${id}</td>`;
+                }
+
+                case 'nombre_acreedor': {
+                  // <NtryDtls><TxDtls><RltdPties><Cdtr><Id><OrgId><Othr><Issr>
+                  const issr = it
+                    .getElementsByTagName('NtryDtls')[0]
+                    ?.getElementsByTagName('TxDtls')[0]
+                    ?.getElementsByTagName('RltdPties')[0]
+                    ?.getElementsByTagName('Cdtr')[0]
+                    ?.getElementsByTagName('Id')[0]
+                    ?.getElementsByTagName('OrgId')[0]
+                    ?.getElementsByTagName('Othr')[0]
+                    ?.getElementsByTagName('Issr')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${issr}</td>`;
+                }
+
+                case 'otro_acreedor': {
+                  // <NtryDtls><TxDtls><RltdPties><Cdtr><CtctDtls><Othr>
+                  const othr = it
+                    .getElementsByTagName('NtryDtls')[0]
+                    ?.getElementsByTagName('TxDtls')[0]
+                    ?.getElementsByTagName('RltdPties')[0]
+                    ?.getElementsByTagName('Cdtr')[0]
+                    ?.getElementsByTagName('CtctDtls')[0]
+                    ?.getElementsByTagName('Othr')[0]
+                    ?.textContent.trim() || '';
+                  return `<td>${othr}</td>`;
+                }
+
+                case 'Cuenta Acreedor (Entra)': {
+                  // <CdtrAcct><Id><Othr><Id>
+                  const id = it
+                    .getElementsByTagName('CdtrAcct')[0]
+                    ?.getElementsByTagName('Id')[0]
+                    ?.getElementsByTagName('Othr')[0]
+                    ?.getElementsByTagName('Id')[0]
+                    ?.textContent.trim()
+                    || '';
+                  return `<td>${id}</td>`;
+                }
+
+                case 'cuenta_acreedor_ccy': {
+                  // <CdtrAcct><Ccy>
+                  const ccy = it
+                    .getElementsByTagName('CdtrAcct')[0]
+                    ?.getElementsByTagName('Ccy')[0]
+                    ?.textContent.trim()
+                    || '';
+                  return `<td>${ccy}</td>`;
+                }
+
+                case 'Código Portafolio Acreedor 1.1.10': {
+                  // <CdtrAcct><Tp><Prtry>
+                  const pr = it
+                    .getElementsByTagName('CdtrAcct')[0]
+                    ?.getElementsByTagName('Tp')[0]
+                    ?.getElementsByTagName('Prtry')[0]
+                    ?.textContent.trim()
+                    || '';
+                  return `<td>${pr}</td>`;
+                }
+                case 'nombre_acreedor_final': {
+                  // <NtryDtls><TxDtls><RltdPties><UltmtCdtr><Nm>
+                  const nm = it
+                    .getElementsByTagName('NtryDtls')[0]
+                    ?.getElementsByTagName('TxDtls')[0]
+                    ?.getElementsByTagName('RltdPties')[0]
+                    ?.getElementsByTagName('UltmtCdtr')[0]
+                    ?.getElementsByTagName('Nm')[0]
+                    ?.textContent.trim()
+                    || '';
+                  return `<td>${nm}</td>`;
+                }
+
+                case 'nombre_acreedor_final_id': {
+                  // <NtryDtls><TxDtls><RltdPties><UltmtCdtr><Id><OrgId><Othr><Id>
+                  const id = it
+                    .getElementsByTagName('NtryDtls')[0]
+                    ?.getElementsByTagName('TxDtls')[0]
+                    ?.getElementsByTagName('RltdPties')[0]
+                    ?.getElementsByTagName('UltmtCdtr')[0]
+                    ?.getElementsByTagName('Id')[0]
+                    ?.getElementsByTagName('OrgId')[0]
+                    ?.getElementsByTagName('Othr')[0]
+                    ?.getElementsByTagName('Id')[0]
+                    ?.textContent.trim()
+                    || '';
+                  return `<td>${id}</td>`;
+                }
+
+                case 'nombre_acreedor_final_issuer': {
+                  // <NtryDtls><TxDtls><RltdPties><UltmtCdtr><Id><OrgId><Othr><Issr>
+                  const issr = it
+                    .getElementsByTagName('NtryDtls')[0]
+                    ?.getElementsByTagName('TxDtls')[0]
+                    ?.getElementsByTagName('RltdPties')[0]
+                    ?.getElementsByTagName('UltmtCdtr')[0]
+                    ?.getElementsByTagName('Id')[0]
+                    ?.getElementsByTagName('OrgId')[0]
+                    ?.getElementsByTagName('Othr')[0]
+                    ?.getElementsByTagName('Issr')[0]
+                    ?.textContent.trim()
+                    || '';
+                  return `<td>${issr}</td>`;
+                }
+
+                case 'recaudo_detail': {
+                  // <Ntry><AddtlNtryInf>
+                  const addtl = it
+                    .getElementsByTagName('AddtlNtryInf')[0]
+                    ?.textContent
+                    .trim()
+                    || '';
+                  return `<td>${addtl}</td>`;
+                }
+
+                default:
+                  // fallback: busca etiqueta igual al nombre (sin espacios)
+                  const tag = col.replace(/\s+/g, '');
+                  const el = it.getElementsByTagName(tag)[0];
+                  return `<td>${el?.textContent.trim() || ''}</td>`;
+              }
+            }
+          }).join('') +
+          `</tr>`;
+      });
+
+      html += '</tbody></table>';
+      document.getElementById('detail').innerHTML = html;
+    }
+
+  </script>
+</body>
+
+</html>
