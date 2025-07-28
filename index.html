@@ -31,7 +31,7 @@
                 👁️
             </a>
         </h1>
-        <!-- Zona de Drag & Drop con espacio fijo -->
+        <!-- Zona de drag & drop con espacio fijo WHS -->
 
         <div id="dropzone" style="background-color:rgb(245, 241, 241);"
             class="relative border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 min-h-[300px]">
@@ -57,7 +57,7 @@
         </div>
         <!-- Pie de página fijo luego de dropzone -->
         <div class="mt-8 text-center text-gray-500 text-sm">
-            © 2025 IOB Suite.❤️ MHCP
+            © 2025 IOB Suite ❤️ MHCP
         </div>
     </div>
 
@@ -297,7 +297,7 @@
                     });
                     bk.appendChild(stmt);
                 });
-                // Serializar y descargar
+                // Serializar / descargar
                 const serializer = new XMLSerializer();
                 const xmlStr = '<?xml version="1.0" encoding="UTF-8"?>' + serializer.serializeToString(doc);
                 const blob = new Blob([xmlStr], { type: 'application/xml' });
@@ -309,10 +309,10 @@
                 downloadLink.setAttribute('download', msgIdText);
                 downloadLink.textContent = msgIdText;
                 downloadLink.classList.remove('hidden');
-                // Reiniciar estado tras la descarga
+                // Reiniciar estado despues dela descarga
                 downloadLink.addEventListener('click', () => {
                     setTimeout(() => {
-                        // Ocultar área de resultado y limpiar input
+                        // Ocultar area de resultado y limpiar input
                         result.classList.add('hidden');
                         fileInput.value = null;
                     }, 100);

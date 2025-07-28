@@ -14,6 +14,7 @@
       margin: 0;
       padding: 0;
       font-family: 'Work Sans', sans-serif;
+      background: #fafbfd;
     }
 
     h1 {
@@ -26,7 +27,7 @@
       align-items: center;
       padding: .5rem 1rem;
       background: #fafafa;
-      border-bottom: 1px solid #ddd;
+      border-bottom: 1px solid #BBC2C8;
       color: #2D77C2
     }
 
@@ -76,27 +77,26 @@
 
     /* Estilo para filas pares */
     tr:nth-child(even) {
-      background-color: #f5f5f5;
+      background-color: #f6f6f6;
       /* Un gris muy claro */
     }
 
-    /* Estilo para filas impares (opcional, si quieres un color diferente al blanco) */
+    /* Estilo para filas impares */
     tr:nth-child(odd) {
       background-color: #ffffff;
       /* Blanco */
     }
 
     .selected-row {
-      background-color: #e0f2ff !important;
+      background-color: #CBF0C5 !important;
       /* celeste clarito */
       font-weight: bold;
     }
 
-    /* 3) Asegúrate de que tus tablas no hagan wrap */
     #header,
     #detail {
-      margin: .5rem 1rem;
-      border: 1px solid #ccc;
+      margin: .5rem .5rem;
+      /*border: 1px solid #ccc;*/
       overflow-y: auto;
     }
 
@@ -105,14 +105,13 @@
     }
 
     #detail {
-      height: 55vh;
+      height: 54vh;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
       table-layout: auto;
-      color: #0E0E0F;
       font-family: 'Work Sans', sans-serif;
     }
 
@@ -122,28 +121,48 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      border: 1px solid #ddd;
+      border: 1px solid #DEDADA;
       vertical-align: middle;
+      color: #0E0E0F;
       font-size: 0.8rem;
     }
 
     th {
       position: sticky;
       top: 0;
-      background: #f5f5f5;
+      background: #EFF1FB;
+      color: #2D77C2;
+      border: 1px solid #DEDADA;
       z-index: 1;
     }
 
     tr:hover {
-      background: #eef;
+      background: #E4F2FB;
       cursor: pointer;
+    }
+
+    footer {
+      background-color: #f0f0f0;
+      /* Un color de fondo claro para el footer (opcional) */
+      padding: 10px 0;
+      /* Espacio vertical alrededor del contenido WHS */
+      text-align: center;
+      /* Centra  horizontalmente */
+      position: relative;
+      bottom: 0;
+      width: 100%;
+    }
+
+    .copyright {
+      font-size: 0.8em;
+      color: #555;
     }
   </style>
 </head>
 
 <body>
   <div id="topBar">
-    <h1>IOB Suite - Visor XML</h1>
+    <h1>Visor de archivos XML ISO 20022</h1>
     <div id="fileSelect">
       <span id="fileName"></span>
       <input type="file" id="fileInput" accept=".xml" />
@@ -152,6 +171,12 @@
 
   <div id="header"></div>
   <div id="detail"></div>
+
+  <footer>
+    <div class="copyright">
+      © 2025 IOB Suite ❤️ MHCP
+    </div>
+  </footer>
 
   <script>
     // --- 1) Tus columnas completas desde C# ---
