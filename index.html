@@ -15,15 +15,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IOB Generador XML</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- SheetJS -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
 
-<body class="p-6 font-sans">
-    <div class="mx-auto max-w-lg xl:max-w-xl">
-        <h1 class="text-xl mb-6 text-center flex items-center justify-center">
+<body class="p-6 font-sans" style="font-family: 'Work Sans', sans-serif;">
+    <div class="p-6 mx-auto max-w-lg xl:max-w-xl">
+        <h1 class="p-6 text-xl mb-6 text-center flex items-center justify-center text-[#2D77C2]">
             Generador de Extractos Bancarios
             <!-- Ojo convertido en enlace -->
             <a href="visor.html" class="ml-2 text-2xl leading-none hover:opacity-80" title="Ir a visor XML"
@@ -43,9 +46,9 @@
                 </svg>
                 <p class="mt-2 text-gray-600">Arrastra y suelta el excel aqui!</p>
                 <p class="text-sm py-2 text-gray-500">O</p>
-                <button id="browseBtn" class="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white
-        rounded">Buscar archivo Excel</button>
-                <input type="file" id="file" accept=".xlsx" class="hidden" />
+                <button id="browseBtn"
+                    class="mt-2 px-4 py-2 bg-[#009216] hover:bg-[#007011] text-white rounded shadow-md">Buscar archivo
+                    Excel</button> <input type="file" id="file" accept=".xlsx" class="hidden" />
             </div>
 
         </div>
