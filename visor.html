@@ -158,6 +158,7 @@
       vertical-align: middle;
       color: #0E0E0F;
       font-size: 0.8rem;
+      text-align:center;
     }
 
     th {
@@ -312,7 +313,7 @@
         + '</tr></thead><tbody>';
 
       nodes.forEach((node, i) => {
-        html += `<tr data-idx="${i}"><td>${i + 1}</td>`
+        html += `<tr data-idx="${i}"><td style="text-align:center">${i + 1}</td>`
           + cols.map(col => {
             // 1) Índice siempre
             if (col === (isPain ? 'PmtInfIndex' : 'StmtIndex')) {
@@ -392,7 +393,7 @@
                   const nm = node.getElementsByTagName('Acct')[0]
                     ?.getElementsByTagName('Nm')[0]
                     ?.textContent.trim() || '';
-                  return `<td>${nm}</td>`;
+                  return `<td style="text-align:left">${nm}</td>`;
                 }
 
                 case 'Nit': {
@@ -464,7 +465,7 @@
                       ?.textContent.trim() === 'OPBD'
                     );
                   const amtEl = bal?.getElementsByTagName('Amt')[0];
-                  // formatearlo usando tu utilitaria
+                  // formatearlo usando utilitaria
                   return `<td style="text-align:right">${formatAmountCell(amtEl)}</td>`;
                 }
                 case 'credit_debit_indicator_initial': {
@@ -775,7 +776,7 @@
       const node = currentHeaders[idx];
       const cols = isPain ? painDetailCols : camtDetailCols;
 
-      let html = '<table><thead><tr><th>#</th>' +
+      let html = '<table><thead><tr><th style="text-align:center">#</th>' +
         cols.map(c => `<th>${c}</th>`).join('') +
         '</tr></thead><tbody>';
 
@@ -811,7 +812,7 @@
                   const nm = cdtr
                     ?.getElementsByTagName('Nm')[0]
                     ?.textContent.trim() || '';
-                  return `<td>${nm}</td>`;
+                  return `<td style="text-align:left">${nm}</td>`;
                 }
 
                 case 'CdtrCountry': {
@@ -867,7 +868,7 @@
                   const nm = it.getElementsByTagName('CdtrAcct')[0]
                     ?.getElementsByTagName('Nm')[0]
                     ?.textContent.trim() || '';
-                  return `<td>${nm}</td>`;
+                  return `<td style="text-align:left">${nm}</td>`;
                 }
 
                 case 'CdtrAgtId': {
@@ -920,12 +921,12 @@
                 case 'RmtInf': {
                   const arr = Array.from(it.getElementsByTagName('Ustrd'))
                     .map(u => u.textContent.trim());
-                  return `<td>${arr.join(' | ')}</td>`;
+                  return `<td style="text-align:left">${arr.join(' | ')}</td>`;
                 }
                 default: {
                   // etiquetas que casan exactamente
                   const el = it.getElementsByTagName(col)[0];
-                  return `<td>${el?.textContent.trim() || ''}</td>`;
+                  return `<td style="text-align:left">${el?.textContent.trim() || ''}</td>`;
                 }
               }
             }
@@ -995,7 +996,7 @@
                   const txDtls = ntryDtls?.getElementsByTagName('TxDtls')[0];
                   const refs = txDtls?.getElementsByTagName('Refs')[0];
                   const acctSvcrRef = refs?.getElementsByTagName('AcctSvcrRef')[0];
-                  return `<td>${acctSvcrRef?.textContent.trim() || ''}</td>`;
+                  return `<td style="text-align:left">${acctSvcrRef?.textContent.trim() || ''}</td>`;
                 }
 
                 case 'Secuencia':
@@ -1275,7 +1276,7 @@
                     ?.textContent
                     .trim()
                     || '';
-                  return `<td>${addtl}</td>`;
+                  return `<td style="text-align:left">${addtl}</td>`;
                 }
 
                 default:
