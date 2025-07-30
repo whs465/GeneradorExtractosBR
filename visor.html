@@ -130,7 +130,7 @@
       margin: .5rem .5rem;
       border: 1px solid #ccc;
       border-radius: 6px;
-      overflow-y: hidden;
+      overflow-y: auto;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 
@@ -145,10 +145,10 @@
     table {
       width: 100%;
       border-collapse: separate;
+      table-layout: auto;
       border-spacing: 0;
       font-family: 'Work Sans', sans-serif;
       border-radius: 6px;
-      overflow: hidden;
       border: none;
     }
 
@@ -167,10 +167,12 @@
     th {
       position: sticky;
       top: 0;
-      background: #EFF1FB;
+       z-index: 10;
+      background-color: #EFF1FB;
       color: #2D77C2;
       border: 1px solid #DEDADA;
-      z-index: 1;
+      padding: 5px 8px;
+      
     }
 
     tr:hover {
