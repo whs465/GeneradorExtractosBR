@@ -129,7 +129,8 @@
     #detail {
       margin: .5rem .5rem;
       border: 1px solid #ccc;
-      overflow-y: auto;
+      border-radius: 6px;
+      overflow-y: hidden;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 
@@ -143,9 +144,12 @@
 
     table {
       width: 100%;
-      border-collapse: collapse;
-      table-layout: auto;
+      border-collapse: separate;
+      border-spacing: 0;
       font-family: 'Work Sans', sans-serif;
+      border-radius: 6px;
+      overflow: hidden;
+      border: none;
     }
 
     th,
@@ -154,11 +158,10 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      border: 1px solid #DEDADA;
       vertical-align: middle;
       color: #0E0E0F;
       font-size: 0.8rem;
-      text-align:center;
+      text-align: center;
     }
 
     th {
@@ -173,6 +176,22 @@
     tr:hover {
       background: #E4F2FB;
       cursor: pointer;
+    }
+
+    table th:first-child {
+      border-top-left-radius: 6px;
+    }
+
+    table th:last-child {
+      border-top-right-radius: 6px;
+    }
+
+    table tr:last-child td:first-child {
+      border-bottom-left-radius: 6px;
+    }
+
+    table tr:last-child td:last-child {
+      border-bottom-right-radius: 6px;
     }
 
     footer {
@@ -192,30 +211,32 @@
       color: #555;
     }
 
-/* Para navegadores basados en WebKit (Chrome, Safari, Edge) */
-::-webkit-scrollbar {
-  width: 8px;  /* Ancho para la barra vertical */
-  height: 8px; /* Altura para la barra horizontal */
-}
+    /* Para navegadores basados en WebKit (Chrome, Safari, Edge) */
+    ::-webkit-scrollbar {
+      width: 8px;
+      /* Ancho para la barra vertical */
+      height: 8px;
+      /* Altura para la barra horizontal */
+    }
 
-::-webkit-scrollbar-thumb {
-  background-color: #888;
-  border-radius: 4px;
-}
+    ::-webkit-scrollbar-thumb {
+      background-color: #888;
+      border-radius: 4px;
+    }
 
-::-webkit-scrollbar-track {
-  background-color: #f1f1f1;
-}
+    ::-webkit-scrollbar-track {
+      background-color: #f1f1f1;
+    }
 
-::-webkit-scrollbar-thumb:hover {
-  background-color: #555;
-}
+    ::-webkit-scrollbar-thumb:hover {
+      background-color: #555;
+    }
 
-/* Para Firefox */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #888 #f1f1f1;
-}
+    /* Para Firefox */
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: #888 #f1f1f1;
+    }
   </style>
 </head>
 
