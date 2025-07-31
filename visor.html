@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <style>
     html,
     body {
@@ -168,12 +169,12 @@
     th {
       position: sticky;
       top: 0;
-       z-index: 10;
+      z-index: 10;
       background-color: #EFF1FB;
       color: #2D77C2;
       border: 1px solid #DEDADA;
       padding: 5px 8px;
-      
+
     }
 
     tr:hover {
@@ -285,7 +286,7 @@
       "type_initial", "currency_initial", "Saldo Inicial", "credit_debit_indicator_initial", "date_initial",
       "type_final", "currency_final", "Saldo Final", "credit_debit_indicator_final", "date_final",
       "Total Registros", "Suma Cantidades", "Neto Cred/Deb", "Naturaleza del Total",
-      "Total Reg Créditos", "Suma Créditos", "Total Reg Débitos", "Suma Débitos"
+      "Total Reg Créditos", "Suma Créditos", "Total Reg Débitos", "Suma Débitos", "Exportar"
     ];
     const camtDetailCols = [
       "Valor Operación", "Moneda", "Tipo Movimiento", "status",
@@ -668,6 +669,31 @@
                     { textContent: sum }
                   )}</td>`;
                 }
+                case 'Exportar': {
+                  const ttl = node.getElementsByTagName('TtlNtries')[0];
+                  const nb = ttl?.getElementsByTagName('NbOfNtries')[0]?.textContent.trim() || '0';
+
+                  // Si no está activo o sin registros → no mostrar ícono
+                  if (nb === '0') return '<td></td>';
+
+                  const isActive = (i === idxActual);
+
+                  const svgExportIcono = `
+                                        <svg xmlns="http://www.w3.org/2000/svg" height="20" width="20" viewBox="0 0 24 24" fill="none" stroke="#217346" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                          <polyline points="7 10 12 15 17 10"/>
+                                          <line x1="12" y1="15" x2="12" y2="3"/>
+                                        </svg>`;
+
+                  return `<td style="text-align:center">
+                    <button 
+                      ${isActive ? `onclick="exportarCuenta(${i})"` : ''}
+                      title="${isActive ? 'Exportar a Excel' : 'Selecciona la cuenta para activar'}"
+                      style="cursor:${isActive ? 'pointer' : 'not-allowed'}; opacity:${isActive ? 1 : 0.4}; border:none; background:none; padding:0">
+                      ${svgExportIcono}
+                    </button>
+                  </td>`;
+                }
               }
             } else {
               // es un pain
@@ -784,6 +810,108 @@
       );
     }
 
+    function exportarCuenta(idx) {
+      if (idx !== idxActual) {
+        alert("Primero haz clic en la cuenta para cargar los movimientos.");
+        return;
+      }
+
+      const stmt = currentHeaders[idx];
+      const id = stmt.getElementsByTagName('Id')[0]?.textContent?.trim() || 'SinId';
+
+      const headerTable = document.querySelector('#header table');
+      const detailTable = document.querySelector('#detail table');
+
+      if (!detailTable || !detailTable.querySelector('tbody tr')) {
+        alert("No hay movimientos cargados para esta cuenta.");
+        return;
+      }
+
+      // 🟢 Cabeceras y datos permitidos
+      const allowedHeaderCols = [
+        'Cuenta', 'Saldo Inicial', 'Saldo Final', 'type_final', 'Total Registros',
+        'Suma Créditos', 'Suma Débitos', 'Total Reg Créditos', 'Total Reg Débitos',
+        'Neto Cred/Deb', 'Naturaleza del Total', 'Suma Cantidades'
+      ];
+      const allowedDetailCols = [
+        'Valor Operación', 'Moneda', 'Tipo Movimiento', 'status', 'Fecha Operación', 'Fecha Valor',
+        'Concepto Bancario', 'issuer_constant', 'Referencia Operación', 'Nombre Transacción',
+        'Secuencia', 'Tipo Saldo', 'after_transaction_balance', 'after_transaction_currency',
+        'nit_deudor', 'nombre_deudor', 'otro_deudor', 'Cuenta Deudor (Sale)',
+        'Código Portafolio Deudor 1.1.10', 'cuenta_deudor_ccy', 'Nombre Tercero 9.1.0',
+        'Cuenta Tercero', 'Nombre Cuenta Débito 9.1.20', 'nit_acreedor', 'nombre_acreedor',
+        'otro_acreedor', 'Cuenta Acreedor (Entra)', 'cuenta_acreedor_ccy',
+        'Código Portafolio Acreedor 1.1.10', 'nombre_acreedor_final',
+        'nombre_acreedor_final_id', 'nombre_acreedor_final_issuer', 'recaudo_detail'
+      ];
+
+      // Extraer encabezados de la tabla (en pantalla)
+      const headerCols = Array.from(headerTable.querySelectorAll('thead th')).map(th => th.textContent.trim());
+      const detailCols = Array.from(detailTable.querySelectorAll('thead th')).map(th => th.textContent.trim());
+
+      // Fila de cabecera seleccionada
+      const headerRow = Array.from(headerTable.querySelectorAll('tbody tr'))[idx];
+      const headerData = Array.from(headerRow.querySelectorAll('td')).map(td => td.textContent.trim());
+
+      // Filas de detalle
+      const detailRows = Array.from(detailTable.querySelectorAll('tbody tr'));
+      const rows = [];
+
+      detailRows.forEach(detailRow => {
+        const detailData = Array.from(detailRow.querySelectorAll('td')).map(td => td.textContent.trim());
+
+        const row = {};
+
+        allowedHeaderCols.forEach(col => {
+          const i = headerCols.indexOf(col);
+          if (i !== -1) {
+            let value = headerData[i];
+
+            if ([
+              'Saldo Inicial',
+              'Saldo Final',
+              'Suma Créditos',
+              'Suma Débitos',
+              'Neto Cred/Deb',
+              'Suma Cantidades', 'Total Reg Créditos', 'Total Reg Débitos'
+            ].includes(col)) {
+              value = value.replaceAll('.', '').replace(',', '.');
+              row[col] = parseFloat(value) || 0;
+            } else {
+              row[col] = value;
+            }
+          }
+        });
+
+        allowedDetailCols.forEach(col => {
+          const i = detailCols.indexOf(col);
+          if (i !== -1) {
+            let value = detailData[i];
+
+            if ([
+              'Valor Operación',
+              'after_transaction_balance'
+            ].includes(col)) {
+              value = value.replaceAll('.', '').replace(',', '.');
+              row[col] = parseFloat(value) || 0;
+            } else {
+              row[col] = value;
+            }
+          }
+        });
+
+        rows.push(row);
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Movimientos');
+
+      XLSX.writeFile(workbook, `Extracto_${id}.xlsx`);
+    }
+
+
+
     function formatAmountCell(el) {
       if (!el) return '';
       // texto crudo, sustituimos coma por punto si existiera
@@ -795,10 +923,13 @@
       });
     }
 
+    let idxActual = -1;
 
     function showDetail(idx) {
       const node = currentHeaders[idx];
       const cols = isPain ? painDetailCols : camtDetailCols;
+
+      idxActual = idx;
 
       let html = '<table><thead><tr><th style="text-align:center">#</th>' +
         cols.map(c => `<th>${c}</th>`).join('') +
@@ -1315,6 +1446,7 @@
       });
 
       html += '</tbody></table>';
+      renderTable('header', camtHeaderCols, currentHeaders, showDetail);
       document.getElementById("detail").scrollTop = 0;
       document.getElementById('detail').innerHTML = html;
     }

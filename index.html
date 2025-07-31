@@ -112,9 +112,10 @@
                 // Agrupar por extracto (cuenta|Moneda|Fecha Valor)
                 const groups = {};
                 rows.forEach(r => {
-                    const key = [r['cuenta'], r['Moneda'], r['Fecha Valor']].join('|');
+                    const key = [r['Cuenta'], r['Moneda'], r['Fecha Valor']].join('|');
                     (groups[key] = groups[key] || []).push(r);
                 });
+                
                 // Crear XML
                 const doc = document.implementation.createDocument(NAMESPACE, 'Document', null);
                 const root = doc.documentElement;
@@ -140,8 +141,9 @@
                 Object.values(groups).forEach(groupRows => {
                     const r0 = groupRows[0];
                     const stmt = createEl(doc, 'Stmt');
+
                     // Id
-                    const stmtId = createEl(doc, 'Id', `${r0['Moneda']}${String(r0['cuenta']).padStart(11, '0')}N${yymmdd}${yymmdd}1000`);
+                    const stmtId = createEl(doc, 'Id', `${r0['Moneda']}${String(r0['Cuenta']).padStart(11, '0')}N${yymmdd}${yymmdd}1000`);
                     stmt.appendChild(stmtId);
                     // CreDtTm
                     stmt.appendChild(createEl(doc, 'CreDtTm', `${dt.getFullYear()}-${MM}-${DD}T10:00:30`));
@@ -154,7 +156,7 @@
                     const acct = createEl(doc, 'Acct');
                     const id = createEl(doc, 'Id');
                     const othr = createEl(doc, 'Othr');
-                    othr.appendChild(createEl(doc, 'Id', String(r0['cuenta']).padStart(11, '0')));
+                    othr.appendChild(createEl(doc, 'Id', String(r0['Cuenta']).padStart(11, '0')));
                     id.appendChild(othr);
                     acct.appendChild(id);
                     // Tipo y moneda
@@ -195,17 +197,17 @@
                     const sum = createEl(doc, 'TxsSummry');
                     const ttl = createEl(doc, 'TtlNtries');
                     ttl.appendChild(createEl(doc, 'NbOfNtries', r0['Total Registros']));
-                    ttl.appendChild(createEl(doc, 'Sum', r0['Neto Deb/Cred']));
-                    ttl.appendChild(createEl(doc, 'TtlNetNtryAmt', r0['Neto Deb/Cred']));
-                    ttl.appendChild(createEl(doc, 'CdtDbtInd', 'DBIT'));
+                    ttl.appendChild(createEl(doc, 'Sum', r0['Suma Cantidades']));
+                    ttl.appendChild(createEl(doc, 'TtlNetNtryAmt', r0['Neto Cred/Deb']));
+                    ttl.appendChild(createEl(doc, 'CdtDbtInd', r0['Naturaleza del Total']));
                     sum.appendChild(ttl);
                     const cdt = createEl(doc, 'TtlCdtNtries');
-                    cdt.appendChild(createEl(doc, 'NbOfNtries', r0['Total Reg Credito']));
-                    cdt.appendChild(createEl(doc, 'Sum', r0['Suma Creditos']));
+                    cdt.appendChild(createEl(doc, 'NbOfNtries', r0['Total Reg Créditos']));
+                    cdt.appendChild(createEl(doc, 'Sum', r0['Suma Créditos']));
                     sum.appendChild(cdt);
                     const dbt = createEl(doc, 'TtlDbtNtries');
-                    dbt.appendChild(createEl(doc, 'NbOfNtries', r0['Total Reg Debito']));
-                    dbt.appendChild(createEl(doc, 'Sum', r0['Suma Debitos']));
+                    dbt.appendChild(createEl(doc, 'NbOfNtries', r0['Total Reg Débitos']));
+                    dbt.appendChild(createEl(doc, 'Sum', r0['Suma Débitos']));
                     sum.appendChild(dbt);
                     stmt.appendChild(sum);
                     groupRows.forEach(r => {
