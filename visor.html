@@ -337,7 +337,6 @@
     <div class="cerrar" onclick="cerrarToast()">✖</div>
   </div>
 
-
   <script>
     // --- 1) Tus columnas completas desde C# ---
     const painHeaderCols = [
@@ -888,7 +887,6 @@
       const headerTable = document.querySelector('#header table');
       const detailTable = document.querySelector('#detail table');
 
-      // 🟢 Cabeceras y datos permitidos
       const allowedHeaderCols = [
         'Cuenta', 'Saldo Inicial', 'Saldo Final', 'type_final', 'Total Registros',
         'Suma Créditos', 'Suma Débitos', 'Total Reg Créditos', 'Total Reg Débitos',
@@ -979,7 +977,7 @@
 
       setTimeout(() => {
         toast.classList.add("oculto");
-      }, 7000); // se oculta a los 7 segundos
+      }, 7000); 
     }
 
     function cerrarToast() {

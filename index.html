@@ -65,6 +65,31 @@
         </div>
     </div>
 
+    <div id="toast-exito"
+        class="hidden fixed bottom-5 right-5 z-50 max-w-sm w-full bg-green-600 text-white rounded-lg shadow-lg border-l-8 border-green-900 flex p-4">
+        <!-- Icono -->
+        <div class="mr-3 flex items-start">
+            <svg class="w-7 h-7 mt-0.5" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="12" fill="#2ecc71" />
+                <path d="M9.5 16L5 11.5L6.41 10.09L9.5 13.17L17.59 5.09L19 6.5L9.5 16Z" fill="white" />
+            </svg>
+        </div>
+
+        <!-- Contenido -->
+        <div class="flex-1 text-sm">
+            <p class="font-semibold text-base leading-tight">Éxito</p>
+            <p class="mt-1 leading-snug">
+                El archivo:<br>
+                <span id="archivo-nombre" class="break-words"></span><br>
+                ha sido generado con éxito.<br>
+            </p>
+        </div>
+
+        <!-- Botón cerrar -->
+        <button onclick="cerrarToast()"
+            class="text-white hover:text-gray-200 ml-4 text-xl leading-none focus:outline-none">&times;</button>
+    </div>
+
     <script>
         const NAMESPACE = 'urn:iso:std:iso:20022:tech:xsd:camt.053.001.02';
 
@@ -115,7 +140,7 @@
                     const key = [r['Cuenta'], r['Moneda'], r['Fecha Valor']].join('|');
                     (groups[key] = groups[key] || []).push(r);
                 });
-                
+
                 // Crear XML
                 const doc = document.implementation.createDocument(NAMESPACE, 'Document', null);
                 const root = doc.documentElement;
@@ -315,16 +340,38 @@
                 downloadLink.setAttribute('download', msgIdText);
                 downloadLink.textContent = msgIdText;
                 downloadLink.classList.remove('hidden');
+
                 // Reiniciar estado despues dela descarga
+
                 downloadLink.addEventListener('click', () => {
                     setTimeout(() => {
                         // Ocultar area de resultado y limpiar input
                         result.classList.add('hidden');
                         fileInput.value = null;
+                        // Mostrar el toast con el nombre del archivo generado
+                        mostrarToast(msgIdText);
                     }, 100);
                 });
             };
             reader.readAsArrayBuffer(file);
         }
+
+        function mostrarToast(nombreArchivo) {
+            const toast = document.getElementById('toast-exito');
+            const spanNombre = document.getElementById('archivo-nombre');
+
+            spanNombre.textContent = nombreArchivo;
+            toast.classList.remove('hidden');
+
+            // Auto-cierre 
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 7000);
+        }
+
+        function cerrarToast() {
+            document.getElementById('toast-exito').classList.add('hidden');
+        }
+
     </script>
 </body>
