@@ -241,6 +241,61 @@
       scrollbar-width: thin;
       scrollbar-color: #888 #f1f1f1;
     }
+
+    .toast {
+      position: fixed;
+      bottom: 1.5em;
+      right: 1.5em;
+      background: #28a745;
+      color: white;
+      padding: 1em 1.2em;
+      border-radius: 10px;
+      display: flex;
+      align-items: flex-start;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      font-family: 'Work Sans', sans-serif;
+      z-index: 1000;
+      max-width: 430px;
+      border-left: 8px solid #006400;
+      /* borde izquierdo estilo gráfico */
+    }
+
+    .toast .icono {
+      margin-right: 0.7em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .toast .contenido {
+      flex-grow: 1;
+      font-size: 14px;
+      line-height: 1.4em;
+    }
+
+    .toast .contenido strong {
+      font-size: 15px;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .toast .cerrar {
+      position: absolute;
+      top: 0.4em;
+      /* Más arriba */
+      right: 0.4em;
+      /* Más a la izquierda (desde el borde derecho) */
+      cursor: pointer;
+      font-size: 1.3em;
+      /* Un pelín más grande si querés */
+      line-height: 1;
+      color: white;
+    }
+
+    .toast.oculto {
+      display: none;
+    }
+
   </style>
 </head>
 
@@ -266,6 +321,22 @@
       © 2025 IOB Suite ❤️ MHCP
     </div>
   </footer>
+
+  <div id="toast-exito" class="toast oculto">
+    <div class="icono">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="#fff" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="12" fill="#2ecc71" />
+        <path d="M9.5 16L5 11.5L6.41 10.09L9.5 13.17L17.59 5.09L19 6.5L9.5 16Z" fill="white" />
+      </svg>
+    </div>
+    <div class="contenido">
+      <strong>Éxito</strong>
+      El archivo: <br>
+      <span id="archivo-nombre"></span><br> ha sido generado con éxito.<br>
+    </div>
+    <div class="cerrar" onclick="cerrarToast()">✖</div>
+  </div>
+
 
   <script>
     // --- 1) Tus columnas completas desde C# ---
@@ -898,9 +969,22 @@
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Movimientos');
 
       XLSX.writeFile(workbook, `Extracto_${id}.xlsx`);
+      mostrarToast(`Extracto_${id}.xlsx`);
     }
 
+    function mostrarToast(nombreArchivo) {
+      document.getElementById("archivo-nombre").textContent = nombreArchivo;
+      const toast = document.getElementById("toast-exito");
+      toast.classList.remove("oculto");
 
+      setTimeout(() => {
+        toast.classList.add("oculto");
+      }, 7000); // se oculta a los 7 segundos
+    }
+
+    function cerrarToast() {
+      document.getElementById("toast-exito").classList.add("oculto");
+    }
 
     function formatAmountCell(el) {
       if (!el) return '';
