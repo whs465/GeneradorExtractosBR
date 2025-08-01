@@ -2,6 +2,33 @@
 <html lang="en">
 
 <head>
+    <style>
+        @keyframes latido {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            25% {
+                transform: scale(1.2);
+            }
+
+            50% {
+                transform: scale(0.95);
+            }
+
+            75% {
+                transform: scale(1.1);
+            }
+        }
+
+        .animate-latido {
+            animation: latido 2s infinite ease-in-out;
+            display: inline-block;
+        }
+    </style>
+
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-DJC85LJVNM"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
@@ -61,7 +88,7 @@
         </div>
         <!-- Pie de página fijo luego de dropzone -->
         <div class="mt-8 text-center text-gray-500 text-sm">
-            © 2025 IOB Suite ❤️ MHCP
+            © 2025 IOB Suite <span class="animate-latido text-red-500">❤️</span> MHCP
         </div>
     </div>
 

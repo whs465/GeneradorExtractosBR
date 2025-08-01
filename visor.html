@@ -296,6 +296,31 @@
       display: none;
     }
 
+    .heart {
+      display: inline-block;
+      animation: heartbeat 2s infinite ease-in-out;
+      transform-origin: center;
+    }
+
+    @keyframes heartbeat {
+
+      0%,
+      100% {
+        transform: scale(1);
+      }
+
+      25% {
+        transform: scale(1.2);
+      }
+
+      50% {
+        transform: scale(0.95);
+      }
+
+      75% {
+        transform: scale(1.1);
+      }
+    }
   </style>
 </head>
 
@@ -318,7 +343,7 @@
 
   <footer>
     <div class="copyright">
-      © 2025 IOB Suite ❤️ MHCP
+      © 2025 IOB Suite <span class="heart">❤️</span> MHCP
     </div>
   </footer>
 
@@ -977,7 +1002,7 @@
 
       setTimeout(() => {
         toast.classList.add("oculto");
-      }, 7000); 
+      }, 7000);
     }
 
     function cerrarToast() {
