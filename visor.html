@@ -811,21 +811,11 @@
     }
 
     function exportarCuenta(idx) {
-      if (idx !== idxActual) {
-        alert("Primero haz clic en la cuenta para cargar los movimientos.");
-        return;
-      }
-
       const stmt = currentHeaders[idx];
       const id = stmt.getElementsByTagName('Id')[0]?.textContent?.trim() || 'SinId';
 
       const headerTable = document.querySelector('#header table');
       const detailTable = document.querySelector('#detail table');
-
-      if (!detailTable || !detailTable.querySelector('tbody tr')) {
-        alert("No hay movimientos cargados para esta cuenta.");
-        return;
-      }
 
       // 🟢 Cabeceras y datos permitidos
       const allowedHeaderCols = [
