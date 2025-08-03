@@ -16,7 +16,7 @@
       margin: 0;
       padding: 0;
       font-family: 'Work Sans', sans-serif;
-      background: #fafbfd;
+      background: rgb(245, 245, 247);
     }
 
     h1 {
@@ -433,7 +433,8 @@
         + '</tr></thead><tbody>';
 
       nodes.forEach((node, i) => {
-        html += `<tr data-idx="${i}"><td style="text-align:center">${i + 1}</td>`
+        const clase = (i === idxActual) ? 'selected-row' : '';
+        html += `<tr data-idx="${i}" class="${clase}"><td style="text-align:center">${i + 1}</td>`
           + cols.map(col => {
             // 1) Índice siempre
             if (col === (isPain ? 'PmtInfIndex' : 'StmtIndex')) {
@@ -893,6 +894,8 @@
       const filas = div.querySelectorAll('tr[data-idx]');
       filas.forEach(tr =>
         tr.addEventListener('click', () => {
+          const nuevoIdx = +tr.dataset.idx;
+          idxActual = nuevoIdx;
           // quitar selección previa
           filas.forEach(f => f.classList.remove('selected-row'));
 
