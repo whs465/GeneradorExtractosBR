@@ -371,7 +371,7 @@
     const painHeaderCols = [
       "PmtInfId", "PmtMtd", "NbOfTxs", "CtrlSum",
       "SvcLvl", "LclInstrm", "ReqdExctnDt", "DbtrNm", "DbtrAcctId",
-      "DbtrAgtInfo", "DbtrAgtMemberId", "DbtrAgtCountry",
+      "DbtrAgtBIC", "DbtrAgtMemberId", "DbtrAgtCountry",
       "DbtrStreet", "DbtrTown", "DbtrCountryRes"
     ];
     const painDetailCols = [
@@ -409,16 +409,20 @@
       const file = e.target.files[0];
       if (!file) return;
 
-      // <<< aquí: vuelca el nombre completo >>>
       fileName.textContent = file.name;
 
-      // luego el parseo normal:
+      // Reset UI/estado para evitar arrastres entre formatos
+      idxActual = -1;
+      document.getElementById('header').innerHTML = '';
+      document.getElementById('detail').innerHTML = '';
+
       const xml = await file.text();
       const doc = new DOMParser().parseFromString(xml, 'application/xml');
 
       isPain = !!doc.getElementsByTagName('PmtInf').length;
+
       const hCols = isPain ? painHeaderCols : camtHeaderCols;
-      const dCols = isPain ? painDetailCols : camtDetailCols;
+      const dCols = isPain ? painDetailCols : camtDetailCols; // (por si lo usas después)
 
       currentHeaders = Array.from(
         isPain
@@ -427,8 +431,24 @@
       );
 
       renderTable('header', hCols, currentHeaders, showDetail);
-      document.getElementById('detail').innerHTML = '';
+      // detail ya fue limpiado arriba
     });
+
+    function getText(node, path) {
+      // path: ['DbtrAgt','FinInstnId','ClrSysMmbId','MmbId']
+      let cur = node;
+      for (const tag of path) {
+        cur = cur?.getElementsByTagName(tag)[0];
+        if (!cur) return '';
+      }
+      return (cur.textContent || '').trim();
+    }
+
+    function getSvcLvl(pmtInfNode) {
+      // <PmtTpInf><SvcLvl><Cd>SEPA</Cd></SvcLvl></PmtTpInf>
+      return getText(pmtInfNode, ['PmtTpInf', 'SvcLvl', 'Cd']);
+    }
+
 
     function renderTable(containerId, cols, nodes, onRowClick) {
       const div = document.getElementById(containerId);
@@ -811,78 +831,52 @@
                   return `<td style="text-align:right">${formatAmountCell(cs)}</td>`;
                 }
                 case 'SvcLvl': {
-                  // <PmtTpInf><SvcLvl><Cd>
-                  const tpInf = node.getElementsByTagName('PmtTpInf')[0];
-                  const svc = tpInf
-                    ?.getElementsByTagName('SvcLvl')[0]
-                    ?.getElementsByTagName('Cd')[0]
-                    ?.textContent.trim()
-                    || '';
+                  const svc = getSvcLvl(node);
                   return `<td>${svc}</td>`;
                 }
 
-                case 'DbtrAgtInfo': {
-                  // <DbtrAgt><FinInstnId><BIC>
-                  const agt = node.getElementsByTagName('DbtrAgt')[0];
-                  const fin = agt?.getElementsByTagName('FinInstnId')[0];
-                  const bic = fin?.getElementsByTagName('BIC')[0];
-                  const memberId = bic?.textContent.trim() || '';
-                  return `<td>${memberId}</td>`;
-                }
-
                 case 'DbtrAgtMemberId': {
-                  // <DbtrAgt><FinInstnId><ClrSysMmbId><MmbId>
-                  const agt = node.getElementsByTagName('DbtrAgt')[0];
-                  const fin = agt?.getElementsByTagName('FinInstnId')[0];
-                  const clr = fin?.getElementsByTagName('ClrSysMmbId')[0];
-                  const mmb = clr?.getElementsByTagName('MmbId')[0];
-                  const idTxt = mmb?.textContent.trim() || '';
-                  return `<td>${idTxt}</td>`;
+                  // Solo no-SEPA: FinInstnId/ClrSysMmbId/MmbId
+                  const isSepa = getSvcLvl(node) === 'SEPA';
+                  const mmb = isSepa ? '' : getText(node, ['DbtrAgt', 'FinInstnId', 'ClrSysMmbId', 'MmbId']);
+                  return `<td>${mmb}</td>`;
                 }
                 case 'ReqdExctnDt':
                   return `<td>${node.getElementsByTagName('ReqdExctnDt')[0]?.textContent || ''}</td>`;
-                case 'DbtrNm':
-                  return `<td>${node.getElementsByTagName('Dbtr')[0]
-                    ?.getElementsByTagName('Nm')[0]
-                    ?.textContent || ''}</td>`;
+                case 'DbtrNm': {
+                  return `<td>${getText(node, ['Dbtr', 'Nm'])}</td>`;
+                }
                 case 'DbtrAcctId': {
-                  // IBAN vs Othr.Id
-                  const svc = node.getElementsByTagName('SvcLvl')[0]?.textContent;
-                  if (svc === 'SEPA') {
-                    return `<td>${node.getElementsByTagName('IBAN')[0]?.textContent || ''}</td>`;
-                  } else {
-                    return `<td>${node.getElementsByTagName('Othr')[0]
-                      ?.getElementsByTagName('Id')[0]
-                      ?.textContent || ''}</td>`;
-                  }
+                  const isSepa = getSvcLvl(node) === 'SEPA';
+                  const val = isSepa
+                    ? getText(node, ['DbtrAcct', 'Id', 'IBAN'])  // IBAN
+                    : getText(node, ['DbtrAcct', 'Id', 'Othr', 'Id']); // Othr/Id
+                  return `<td>${val}</td>`;
                 }
-                case 'DbtrAgtInfo': {
-                  const svc = node.getElementsByTagName('SvcLvl')[0]?.textContent;
-                  if (svc === 'SEPA') {
-                    return `<td>${node.getElementsByTagName('DbtrAgt')[0]
-                      ?.getElementsByTagName('Nm')[0]
-                      ?.textContent || ''}</td>`;
-                  } else {
-                    return `<td>${node.getElementsByTagName('BIC')[0]?.textContent || ''}</td>`;
-                  }
+                case 'DbtrAgtBIC': {
+                  // En ambos (SEPA y no-SEPA) el BIC viene en FinInstnId/BIC
+                  const bic = getText(node, ['DbtrAgt', 'FinInstnId', 'BIC']);
+                  return `<td>${bic}</td>`;
                 }
+
                 case 'DbtrAgtCountry': {
-                  // <DbtrAgt><FinInstnId><PstlAdr><Ctry>
-                  const agt = node.getElementsByTagName('DbtrAgt')[0];
-                  const fin = agt?.getElementsByTagName('FinInstnId')[0];
-                  const adr = fin?.getElementsByTagName('PstlAdr')[0];
-                  const ctr = adr?.getElementsByTagName('Ctry')[0];
-                  const country = ctr?.textContent.trim() || '';
+                  const country = getText(node, ['DbtrAgt', 'FinInstnId', 'PstlAdr', 'Ctry']);
                   return `<td>${country}</td>`;
                 }
-                case 'LclInstrm':
-                  return `<td>${node.getElementsByTagName('Prtry')[0]?.textContent || ''}</td>`;
-                case 'DbtrStreet':
-                  return `<td>${node.getElementsByTagName('StrtNm')[0]?.textContent || ''}</td>`;
-                case 'DbtrTown':
-                  return `<td>${node.getElementsByTagName('TwnNm')[0]?.textContent || ''}</td>`;
-                case 'DbtrCountryRes':
-                  return `<td>${node.getElementsByTagName('CtryOfRes')[0]?.textContent || ''}</td>`;
+                case 'LclInstrm': {
+                  // <PmtTpInf><LclInstrm><Prtry>
+                  const prtry = getText(node, ['PmtTpInf', 'LclInstrm', 'Prtry']);
+                  return `<td>${prtry}</td>`;
+                }
+                case 'DbtrStreet': {
+                  return `<td>${getText(node, ['Dbtr', 'PstlAdr', 'StrtNm'])}</td>`;
+                }
+                case 'DbtrTown': {
+                  return `<td>${getText(node, ['Dbtr', 'PstlAdr', 'TwnNm'])}</td>`;
+                }
+                case 'DbtrCountryRes': {
+                  return `<td>${getText(node, ['Dbtr', 'CtryOfRes'])}</td>`;
+                }
                 default:
                   return `<td></td>`;
               }
@@ -1550,7 +1544,9 @@
       });
 
       html += '</tbody></table>';
-      renderTable('header', camtHeaderCols, currentHeaders, showDetail);
+      const headerCols = isPain ? painHeaderCols : camtHeaderCols;
+      renderTable('header', headerCols, currentHeaders, showDetail);
+
       document.getElementById("detail").scrollTop = 0;
       document.getElementById('detail').innerHTML = html;
     }
