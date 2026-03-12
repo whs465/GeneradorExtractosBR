@@ -9,6 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="./shared.js"></script>
+  <script src="./mappings.js"></script>
   <style>
     html,
     body {
@@ -45,50 +47,29 @@
       align-items: center;
     }
 
-    .file-label {
-      background-color: #009216;
-      /* Verde */
-      color: white;
-      /* Texto blanco */
-      padding: 8px 16px;
-      /* Ajustar el tamaño */
-      border-radius: 5px;
-      cursor: pointer;
-      display: inline-block;
-      font-family: sans-serif;
-      font-size: 14px;
-      /* Ajustar el tamaño */
-      text-align: center;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      border: none;
-      /* Quitar el borde */
-      transition: background-color 0.3s ease;
+    .file-icon-btn {
       margin-left: auto;
-      /* Empuja el botón hacia la derecha */
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-      /* Sombra sutil */
+      width: 34px;
+      height: 34px;
+      border: none;
+      border-radius: 7px;
+      background: #ffffff;
+      color: #334155;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background-color .2s ease, border-color .2s ease;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
     }
 
-    .file-label:hover {
-      background-color: #007011;
-      /* Verde más oscuro al pasar el ratón */
-    }
-
-    .file-label:active {
-      background-color: #00500c;
-      /* Verde aún más oscuro al hacer clic */
+    .file-icon-btn:hover {
+      background: #f1f5f9;
+      border: none;
     }
 
     .file-input {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      opacity: 0;
-      cursor: pointer;
+      display: none;
     }
 
     #fileNameContainer {
@@ -335,9 +316,12 @@
       <div id="fileNameContainer">
         <span id="fileName"></span>
       </div>
-      <label for="fileInput" class="file-label">
-        Seleccionar Archivo XML
-      </label>
+      <button id="browseXmlBtn" type="button" class="file-icon-btn" title="Seleccionar Archivo XML" aria-label="Seleccionar Archivo XML">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5V10"/>
+          <path d="M3 11h18l-2 7.5A2 2 0 0 1 17.1 20H6.9A2 2 0 0 1 5 18.5L3 11z"/>
+        </svg>
+      </button>
       <input type="file" id="fileInput" accept=".xml" class="file-input" />
     </div>
   </div>
@@ -367,106 +351,157 @@
   </div>
 
   <script>
-    // --- 1) Tus columnas completas desde C# ---
-    const painHeaderCols = [
-      "PmtInfId", "PmtMtd", "NbOfTxs", "CtrlSum",
-      "SvcLvl", "LclInstrm", "ReqdExctnDt", "DbtrNm", "DbtrAcctId",
-      "DbtrAgtBIC", "DbtrAgtMemberId", "DbtrAgtCountry",
-      "DbtrStreet", "DbtrTown", "DbtrCountryRes"
-    ];
-    const painDetailCols = [
-      "EndToEndId", "InstdAmt", "InstdAmtCcy",
-      "CdtrNm", "CdtrCountry", "CdtrOrgId", "CdtrAcctId",
-      "CdtrAcctNm", "CdtrAgtId", "CdtrAgtName", "CdtrAgtCountry", "RmtInf"
-    ];
-    const camtHeaderCols = [
-      "Cuenta", "Extracto", "Tipo Extracto", "Fecha Generación", "Fecha Inicial", "Fecha Final",
-      "constant", "Moneda", "Nombre Cuenta", "Nit", "name_tesoreria", "branch_br",
-      "type_initial", "currency_initial", "Saldo Inicial", "credit_debit_indicator_initial", "date_initial",
-      "type_final", "currency_final", "Saldo Final", "credit_debit_indicator_final", "date_final",
-      "Total Registros", "Suma Cantidades", "Neto Cred/Deb", "Naturaleza del Total",
-      "Total Reg Créditos", "Suma Créditos", "Total Reg Débitos", "Suma Débitos", "Exportar"
-    ];
-    const camtDetailCols = [
-      "Valor Operación", "Moneda", "Tipo Movimiento", "status",
-      "Fecha Operación", "Fecha Valor", "Concepto Bancario", "issuer_constant",
-      "Referencia Operación", "Nombre Transacción", "Secuencia", "Tipo Saldo",
-      "after_transaction_balance", "after_transaction_currency",
-      "nit_deudor", "nombre_deudor", "otro_deudor", "Cuenta Deudor (Sale)", "Código Portafolio Deudor 1.1.10",
-      "cuenta_deudor_ccy", "Nombre Tercero 9.1.0", "Cuenta Tercero", "Nombre Cuenta Débito 9.1.20",
-      "nit_acreedor", "nombre_acreedor", "otro_acreedor", "Cuenta Acreedor (Entra)",
-      "cuenta_acreedor_ccy", "Código Portafolio Acreedor 1.1.10", "nombre_acreedor_final",
-      "nombre_acreedor_final_id", "nombre_acreedor_final_issuer", "recaudo_detail"
-    ];
+    const maps = window.GEW_MAPPINGS || {};
+    const painHeaderCols = maps.painHeaderCols || [];
+    const painDetailCols = maps.painDetailCols || [];
+    const camtHeaderCols = maps.camtHeaderCols || [];
+    const camtDetailCols = maps.camtDetailCols || [];
 
     const fileInput = document.getElementById('fileInput');
+    const browseXmlBtn = document.getElementById('browseXmlBtn');
     const fileName = document.getElementById('fileName');
 
     let currentHeaders = [], isPain = false;
 
-    // 2) Al cambiar el input:
-    fileInput.addEventListener('change', async e => {
+    browseXmlBtn.addEventListener('click', () => fileInput.click());
+
+    function getShared() {
+      return window.GEW_SHARED || {};
+    }
+
+    function resetViewerState() {
+      idxActual = -1;
+      currentHeaders = [];
+      document.getElementById('header').innerHTML = '';
+      document.getElementById('detail').innerHTML = '';
+    }
+
+    function loadXmlDocument(xmlText) {
+      const shared = getShared();
+      const parsed = shared.parseXmlSafe
+        ? shared.parseXmlSafe(xmlText)
+        : { doc: new DOMParser().parseFromString(xmlText, 'application/xml'), hasError: false };
+      if (parsed.hasError) return null;
+      return parsed.doc;
+    }
+
+    function resolveXmlKind(doc) {
+      const shared = getShared();
+      return shared.validateXmlKind
+        ? shared.validateXmlKind(doc)
+        : {
+          hasPain: !!doc.getElementsByTagName('PmtInf').length,
+          hasCamt: !!doc.getElementsByTagName('Stmt').length,
+          ok: true
+        };
+    }
+
+    function setHeadersFromDocument(doc, usePain) {
+      currentHeaders = Array.from(
+        usePain
+          ? doc.getElementsByTagName('PmtInf')
+          : doc.getElementsByTagName('Stmt')
+      );
+    }
+
+    function renderHeaderTable() {
+      const headerCols = isPain ? painHeaderCols : camtHeaderCols;
+      renderTable('header', headerCols, currentHeaders, showDetail);
+    }
+
+    // Al cambiar el input
+    fileInput.addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
 
       fileName.textContent = file.name;
-
-      // Reset UI/estado para evitar arrastres entre formatos
-      idxActual = -1;
-      document.getElementById('header').innerHTML = '';
-      document.getElementById('detail').innerHTML = '';
+      resetViewerState();
 
       const xml = await file.text();
-      const doc = new DOMParser().parseFromString(xml, 'application/xml');
+      const doc = loadXmlDocument(xml);
+      if (!doc) {
+        alert('El XML no es válido o está mal formado.');
+        return;
+      }
 
-      isPain = !!doc.getElementsByTagName('PmtInf').length;
+      const kind = resolveXmlKind(doc);
+      if (!kind.ok) {
+        alert('XML no soportado: se esperaba estructura PAIN (PmtInf) o CAMT (Stmt).');
+        return;
+      }
 
-      const hCols = isPain ? painHeaderCols : camtHeaderCols;
-      const dCols = isPain ? painDetailCols : camtDetailCols; // (por si lo usas después)
-
-      currentHeaders = Array.from(
-        isPain
-          ? doc.getElementsByTagName('PmtInf')
-          : doc.getElementsByTagName('Stmt')
-      );
-
-      renderTable('header', hCols, currentHeaders, showDetail);
-      // detail ya fue limpiado arriba
+      isPain = !!kind.hasPain;
+      setHeadersFromDocument(doc, isPain);
+      renderHeaderTable();
     });
 
-    function getText(node, path) {
-      // path: ['DbtrAgt','FinInstnId','ClrSysMmbId','MmbId']
-      let cur = node;
-      for (const tag of path) {
-        cur = cur?.getElementsByTagName(tag)[0];
-        if (!cur) return '';
+
+    const getText = (node, path) => (window.GEW_SHARED?.getText ? window.GEW_SHARED.getText(node, path) : '');
+    const getSvcLvl = (node) => (window.GEW_SHARED?.getSvcLvl ? window.GEW_SHARED.getSvcLvl(node) : '');
+
+    function renderPainHeaderCell(node, col, rowIndex) {
+      switch (col) {
+        case 'PmtInfIndex':
+          return `<td>${rowIndex + 1}</td>`;
+        case 'PmtInfId':
+          return `<td>${node.getElementsByTagName('PmtInfId')[0]?.textContent || ''}</td>`;
+        case 'PmtMtd':
+          return `<td>${node.getElementsByTagName('PmtMtd')[0]?.textContent || ''}</td>`;
+        case 'NbOfTxs':
+          return `<td>${node.getElementsByTagName('NbOfTxs')[0]?.textContent || ''}</td>`;
+        case 'CtrlSum': {
+          const cs = node.getElementsByTagName('CtrlSum')[0];
+          return `<td style="text-align:right">${formatAmountCell(cs)}</td>`;
+        }
+        case 'SvcLvl': {
+          const svc = getSvcLvl(node);
+          return `<td>${svc}</td>`;
+        }
+        case 'DbtrAgtMemberId': {
+          const isSepa = getSvcLvl(node) === 'SEPA';
+          const mmb = isSepa ? '' : getText(node, ['DbtrAgt', 'FinInstnId', 'ClrSysMmbId', 'MmbId']);
+          return `<td>${mmb}</td>`;
+        }
+        case 'ReqdExctnDt':
+          return `<td>${node.getElementsByTagName('ReqdExctnDt')[0]?.textContent || ''}</td>`;
+        case 'DbtrNm': {
+          return `<td>${getText(node, ['Dbtr', 'Nm'])}</td>`;
+        }
+        case 'DbtrAcctId': {
+          const isSepa = getSvcLvl(node) === 'SEPA';
+          const val = isSepa
+            ? getText(node, ['DbtrAcct', 'Id', 'IBAN'])
+            : getText(node, ['DbtrAcct', 'Id', 'Othr', 'Id']);
+          return `<td>${val}</td>`;
+        }
+        case 'DbtrAgtBIC': {
+          const bic = getText(node, ['DbtrAgt', 'FinInstnId', 'BIC']);
+          return `<td>${bic}</td>`;
+        }
+        case 'DbtrAgtCountry': {
+          const country = getText(node, ['DbtrAgt', 'FinInstnId', 'PstlAdr', 'Ctry']);
+          return `<td>${country}</td>`;
+        }
+        case 'LclInstrm': {
+          const prtry = getText(node, ['PmtTpInf', 'LclInstrm', 'Prtry']);
+          return `<td>${prtry}</td>`;
+        }
+        case 'DbtrStreet': {
+          return `<td>${getText(node, ['Dbtr', 'PstlAdr', 'StrtNm'])}</td>`;
+        }
+        case 'DbtrTown': {
+          return `<td>${getText(node, ['Dbtr', 'PstlAdr', 'TwnNm'])}</td>`;
+        }
+        case 'DbtrCountryRes': {
+          return `<td>${getText(node, ['Dbtr', 'CtryOfRes'])}</td>`;
+        }
+        default:
+          return `<td></td>`;
       }
-      return (cur.textContent || '').trim();
     }
 
-    function getSvcLvl(pmtInfNode) {
-      // <PmtTpInf><SvcLvl><Cd>SEPA</Cd></SvcLvl></PmtTpInf>
-      return getText(pmtInfNode, ['PmtTpInf', 'SvcLvl', 'Cd']);
-    }
-
-
-    function renderTable(containerId, cols, nodes, onRowClick) {
-      const div = document.getElementById(containerId);
-      let html = '<table><thead><tr><th>#</th>'
-        + cols.map(c => `<th>${c}</th>`).join('')
-        + '</tr></thead><tbody>';
-
-      nodes.forEach((node, i) => {
-        const clase = (i === idxActual) ? 'selected-row' : '';
-        html += `<tr data-idx="${i}" class="${clase}"><td style="text-align:center">${i + 1}</td>`
-          + cols.map(col => {
-            // 1) Índice siempre
-            if (col === (isPain ? 'PmtInfIndex' : 'StmtIndex')) {
-              return `<td>${i + 1}</td>`;
-            }
-            // 2) Si es CAMT, mapeo manual de cada columna:
-            if (!isPain) {
-              switch (col) {
+    function renderCamtHeaderCell(node, col, rowIndex) {
+      switch (col) {
                 case 'Cuenta': {
                   // <Acct><Id><Othr><Id>
                   const acct = node.getElementsByTagName('Acct')[0];
@@ -796,7 +831,7 @@
                   // Si no está activo o sin registros → no mostrar ícono
                   if (nb === '0') return '<td></td>';
 
-                  const isActive = (i === idxActual);
+                  const isActive = (rowIndex === idxActual);
 
                   const svgExportIcono = `
                                         <svg xmlns="http://www.w3.org/2000/svg" height="20" width="20" viewBox="0 0 24 24" fill="none" stroke="#217346" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -807,79 +842,35 @@
 
                   return `<td style="text-align:center">
                     <button 
-                      ${isActive ? `onclick="exportarCuenta(${i})"` : ''}
+                      ${isActive ? `onclick="exportarCuenta(${rowIndex})"` : ''}
                       title="${isActive ? 'Exportar a Excel' : 'Selecciona la cuenta para activar'}"
                       style="cursor:${isActive ? 'pointer' : 'not-allowed'}; opacity:${isActive ? 1 : 0.4}; border:none; background:none; padding:0">
                       ${svgExportIcono}
                     </button>
                   </td>`;
                 }
-              }
+      }
+    }
+
+    function renderTable(containerId, cols, nodes, onRowClick) {
+      const div = document.getElementById(containerId);
+      let html = '<table><thead><tr><th>#</th>'
+        + cols.map(c => `<th>${c}</th>`).join('')
+        + '</tr></thead><tbody>';
+
+      nodes.forEach((node, i) => {
+        const clase = (i === idxActual) ? 'selected-row' : '';
+        html += `<tr data-idx="${i}" class="${clase}"><td style="text-align:center">${i + 1}</td>`
+          + cols.map(col => {
+            // 1) Índice siempre
+            if (col === (isPain ? 'PmtInfIndex' : 'StmtIndex')) {
+              return `<td>${i + 1}</td>`;
+            }
+            // 2) Si es CAMT, mapeo manual de cada columna:
+            if (!isPain) {
+              return renderCamtHeaderCell(node, col, i);
             } else {
-              // es un pain
-              switch (col) {
-                case 'PmtInfIndex':
-                  return `<td>${i + 1}</td>`;
-                case 'PmtInfId':
-                  return `<td>${node.getElementsByTagName('PmtInfId')[0]?.textContent || ''}</td>`;
-                case 'PmtMtd':
-                  return `<td>${node.getElementsByTagName('PmtMtd')[0]?.textContent || ''}</td>`;
-                case 'NbOfTxs':
-                  return `<td>${node.getElementsByTagName('NbOfTxs')[0]?.textContent || ''}</td>`;
-                case 'CtrlSum': {
-                  const cs = node.getElementsByTagName('CtrlSum')[0];
-                  return `<td style="text-align:right">${formatAmountCell(cs)}</td>`;
-                }
-                case 'SvcLvl': {
-                  const svc = getSvcLvl(node);
-                  return `<td>${svc}</td>`;
-                }
-
-                case 'DbtrAgtMemberId': {
-                  // Solo no-SEPA: FinInstnId/ClrSysMmbId/MmbId
-                  const isSepa = getSvcLvl(node) === 'SEPA';
-                  const mmb = isSepa ? '' : getText(node, ['DbtrAgt', 'FinInstnId', 'ClrSysMmbId', 'MmbId']);
-                  return `<td>${mmb}</td>`;
-                }
-                case 'ReqdExctnDt':
-                  return `<td>${node.getElementsByTagName('ReqdExctnDt')[0]?.textContent || ''}</td>`;
-                case 'DbtrNm': {
-                  return `<td>${getText(node, ['Dbtr', 'Nm'])}</td>`;
-                }
-                case 'DbtrAcctId': {
-                  const isSepa = getSvcLvl(node) === 'SEPA';
-                  const val = isSepa
-                    ? getText(node, ['DbtrAcct', 'Id', 'IBAN'])  // IBAN
-                    : getText(node, ['DbtrAcct', 'Id', 'Othr', 'Id']); // Othr/Id
-                  return `<td>${val}</td>`;
-                }
-                case 'DbtrAgtBIC': {
-                  // En ambos (SEPA y no-SEPA) el BIC viene en FinInstnId/BIC
-                  const bic = getText(node, ['DbtrAgt', 'FinInstnId', 'BIC']);
-                  return `<td>${bic}</td>`;
-                }
-
-                case 'DbtrAgtCountry': {
-                  const country = getText(node, ['DbtrAgt', 'FinInstnId', 'PstlAdr', 'Ctry']);
-                  return `<td>${country}</td>`;
-                }
-                case 'LclInstrm': {
-                  // <PmtTpInf><LclInstrm><Prtry>
-                  const prtry = getText(node, ['PmtTpInf', 'LclInstrm', 'Prtry']);
-                  return `<td>${prtry}</td>`;
-                }
-                case 'DbtrStreet': {
-                  return `<td>${getText(node, ['Dbtr', 'PstlAdr', 'StrtNm'])}</td>`;
-                }
-                case 'DbtrTown': {
-                  return `<td>${getText(node, ['Dbtr', 'PstlAdr', 'TwnNm'])}</td>`;
-                }
-                case 'DbtrCountryRes': {
-                  return `<td>${getText(node, ['Dbtr', 'CtryOfRes'])}</td>`;
-                }
-                default:
-                  return `<td></td>`;
-              }
+              return renderPainHeaderCell(node, col, i);
             }
           }).join('') +
           `</tr>`;
@@ -913,22 +904,8 @@
       const headerTable = document.querySelector('#header table');
       const detailTable = document.querySelector('#detail table');
 
-      const allowedHeaderCols = [
-        'Cuenta', 'Saldo Inicial', 'Saldo Final', 'type_final', 'Total Registros',
-        'Suma Créditos', 'Suma Débitos', 'Total Reg Créditos', 'Total Reg Débitos',
-        'Neto Cred/Deb', 'Naturaleza del Total', 'Suma Cantidades'
-      ];
-      const allowedDetailCols = [
-        'Valor Operación', 'Moneda', 'Tipo Movimiento', 'status', 'Fecha Operación', 'Fecha Valor',
-        'Concepto Bancario', 'issuer_constant', 'Referencia Operación', 'Nombre Transacción',
-        'Secuencia', 'Tipo Saldo', 'after_transaction_balance', 'after_transaction_currency',
-        'nit_deudor', 'nombre_deudor', 'otro_deudor', 'Cuenta Deudor (Sale)',
-        'Código Portafolio Deudor 1.1.10', 'cuenta_deudor_ccy', 'Nombre Tercero 9.1.0',
-        'Cuenta Tercero', 'Nombre Cuenta Débito 9.1.20', 'nit_acreedor', 'nombre_acreedor',
-        'otro_acreedor', 'Cuenta Acreedor (Entra)', 'cuenta_acreedor_ccy',
-        'Código Portafolio Acreedor 1.1.10', 'nombre_acreedor_final',
-        'nombre_acreedor_final_id', 'nombre_acreedor_final_issuer', 'recaudo_detail'
-      ];
+      const allowedHeaderCols = (maps.allowedHeaderColsForExport || []).slice();
+      const allowedDetailCols = (maps.allowedDetailColsForExport || []).slice();
 
       // Extraer encabezados de la tabla (en pantalla)
       const headerCols = Array.from(headerTable.querySelectorAll('thead th')).map(th => th.textContent.trim());
@@ -1011,181 +988,113 @@
     }
 
     function formatAmountCell(el) {
-      if (!el) return '';
-      // texto crudo, sustituimos coma por punto si existiera
-      const raw = parseFloat(el.textContent.trim().replace(',', '.')) || 0;
-      // formateo en español: separador de miles '.', decimales ','
-      return raw.toLocaleString('es-ES', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      });
+      if (window.GEW_SHARED?.formatAmount) return window.GEW_SHARED.formatAmount(el);
+      const raw = parseFloat((el?.textContent || '').trim().replace(',', '.')) || 0;
+      return raw.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
+
 
     let idxActual = -1;
 
-    function showDetail(idx) {
-      const node = currentHeaders[idx];
-      const cols = isPain ? painDetailCols : camtDetailCols;
-
-      idxActual = idx;
-
-      let html = '<table><thead><tr><th style="text-align:center">#</th>' +
-        cols.map(c => `<th>${c}</th>`).join('') +
-        '</tr></thead><tbody>';
-
-      const items = isPain
-        ? Array.from(node.getElementsByTagName('CdtTrfTxInf'))
-        : Array.from(node.getElementsByTagName('Ntry'));
-
-      items.forEach((it, i) => {
-        html += `<tr><td>${i + 1}</td>` +
-          cols.map(col => {
-            if (isPain) {
-              switch (col) {
-                case 'EndToEndId': {
-                  const e2e = it.getElementsByTagName('PmtId')[0]
-                    ?.getElementsByTagName('EndToEndId')[0]
-                    ?.textContent.trim() || '';
-                  return `<td>${e2e}</td>`;
-                }
-                case 'InstdAmt': {
-                  // ahora sí usamos <InstdAmt>
-                  const inst = it.getElementsByTagName('InstdAmt')[0];
-                  return `<td style="text-align:right">${formatAmountCell(inst)}</td>`;
-                }
-                case 'InstdAmtCcy': {
-                  // moneda también en <InstdAmt>
-                  const inst = it.getElementsByTagName('InstdAmt')[0];
-                  return `<td>${inst?.getAttribute('Ccy') || ''}</td>`;
-                }
-
-                case 'CdtrNm': {
-                  // <Cdtr><Nm>
-                  const cdtr = it.getElementsByTagName('Cdtr')[0];
-                  const nm = cdtr
-                    ?.getElementsByTagName('Nm')[0]
-                    ?.textContent.trim() || '';
-                  return `<td style="text-align:left">${nm}</td>`;
-                }
-
-                case 'CdtrCountry': {
-                  // <Cdtr><PstlAdr><Ctry>
-                  const cdtr = it.getElementsByTagName('Cdtr')[0];
-                  const pstlAdr = cdtr
-                    ?.getElementsByTagName('PstlAdr')[0];
-                  const ctry = pstlAdr
-                    ?.getElementsByTagName('Ctry')[0]
-                    ?.textContent.trim() || '';
-                  return `<td>${ctry}</td>`;
-                }
-
-                case 'CdtrOrgId': {
-                  // <Cdtr><Id><OrgId><Othr><Id>
-                  const cdtr = it.getElementsByTagName('Cdtr')[0];
-                  const idNode = cdtr
-                    ?.getElementsByTagName('Id')[0]
-                    ?.getElementsByTagName('OrgId')[0]
-                    ?.getElementsByTagName('Othr')[0]
-                    ?.getElementsByTagName('Id')[0];
-                  const idText = idNode?.textContent.trim() || '';
-                  return `<td>${idText}</td>`;
-                }
-
-                case 'CdtrAcctId': {
-                  // detectamos el Service Level de este PmtInf
-                  const svc = node
-                    .getElementsByTagName('SvcLvl')[0]
-                    ?.textContent.trim() || '';
-
-                  const acct = it.getElementsByTagName('CdtrAcct')[0];
-                  let result = '';
-
-                  if (svc === 'SEPA') {
-                    // SEPA → IBAN
-                    result = acct
-                      ?.getElementsByTagName('IBAN')[0]
-                      ?.textContent.trim() || '';
-                  } else {
-                    // NO-SEPA → <Othr><Id>
-                    result = acct
-                      ?.getElementsByTagName('Othr')[0]
-                      ?.getElementsByTagName('Id')[0]
-                      ?.textContent.trim() || '';
-                  }
-
-                  return `<td>${result}</td>`;
-                }
-
-                case 'CdtrAcctNm': {
-                  // <CdtrAcct><Nm>
-                  const nm = it.getElementsByTagName('CdtrAcct')[0]
-                    ?.getElementsByTagName('Nm')[0]
-                    ?.textContent.trim() || '';
-                  return `<td style="text-align:left">${nm}</td>`;
-                }
-
-                case 'CdtrAgtId': {
-                  // determinamos el Service Level del PmtInf padre
-                  const svc = node.getElementsByTagName('SvcLvl')[0]?.textContent.trim() || '';
-                  // pescamos el FinInstnId de este CdtTrfTxInf
-                  const fin = it.getElementsByTagName('CdtrAgt')[0]
-                    ?.getElementsByTagName('FinInstnId')[0];
-                  let result = '';
-
-                  if (svc === 'SEPA') {
-                    // en SEPA mostramos el <Nm>
-                    result = fin
-                      ?.getElementsByTagName('Nm')[0]
-                      ?.textContent.trim() || '';
-                  } else {
-                    // en no‑SEPA primero intentamos BIC
-                    const bicNode = fin?.getElementsByTagName('BIC')[0];
-                    if (bicNode?.textContent.trim()) {
-                      result = bicNode.textContent.trim();
-                    } else {
-                      // si no hay BIC, buscamos ClrSysMmbId → MmbId
-                      const mmbNode = fin
-                        ?.getElementsByTagName('ClrSysMmbId')[0]
-                        ?.getElementsByTagName('MmbId')[0];
-                      result = mmbNode?.textContent.trim() || '';
-                    }
-                  }
-
-                  return `<td>${result}</td>`;
-                }
-                case 'CdtrAgtName': {
-                  // <CdtrAgt><FinInstnId><Nm>
-                  const name = it.getElementsByTagName('CdtrAgt')[0]
-                    ?.getElementsByTagName('FinInstnId')[0]
-                    ?.getElementsByTagName('Nm')[0]
-                    ?.textContent.trim() || '';
-                  return `<td>${name}</td>`;
-                }
-
-                case 'CdtrAgtCountry': {
-                  // <CdtrAgt><FinInstnId><PstlAdr><Ctry>
-                  const country = it.getElementsByTagName('CdtrAgt')[0]
-                    ?.getElementsByTagName('FinInstnId')[0]
-                    ?.getElementsByTagName('PstlAdr')[0]
-                    ?.getElementsByTagName('Ctry')[0]
-                    ?.textContent.trim() || '';
-                  return `<td>${country}</td>`;
-                }
-                case 'RmtInf': {
-                  const arr = Array.from(it.getElementsByTagName('Ustrd'))
-                    .map(u => u.textContent.trim());
-                  return `<td style="text-align:left">${arr.join(' | ')}</td>`;
-                }
-                default: {
-                  // etiquetas que casan exactamente
-                  const el = it.getElementsByTagName(col)[0];
-                  return `<td style="text-align:left">${el?.textContent.trim() || ''}</td>`;
-                }
-              }
+    function renderPainDetailCell(itemNode, col, paymentNode) {
+      switch (col) {
+        case 'EndToEndId': {
+          const e2e = itemNode.getElementsByTagName('PmtId')[0]
+            ?.getElementsByTagName('EndToEndId')[0]
+            ?.textContent.trim() || '';
+          return `<td>${e2e}</td>`;
+        }
+        case 'InstdAmt': {
+          const inst = itemNode.getElementsByTagName('InstdAmt')[0];
+          return `<td style="text-align:right">${formatAmountCell(inst)}</td>`;
+        }
+        case 'InstdAmtCcy': {
+          const inst = itemNode.getElementsByTagName('InstdAmt')[0];
+          return `<td>${inst?.getAttribute('Ccy') || ''}</td>`;
+        }
+        case 'CdtrNm': {
+          const cdtr = itemNode.getElementsByTagName('Cdtr')[0];
+          const nm = cdtr?.getElementsByTagName('Nm')[0]?.textContent.trim() || '';
+          return `<td style="text-align:left">${nm}</td>`;
+        }
+        case 'CdtrCountry': {
+          const cdtr = itemNode.getElementsByTagName('Cdtr')[0];
+          const pstlAdr = cdtr?.getElementsByTagName('PstlAdr')[0];
+          const ctry = pstlAdr?.getElementsByTagName('Ctry')[0]?.textContent.trim() || '';
+          return `<td>${ctry}</td>`;
+        }
+        case 'CdtrOrgId': {
+          const cdtr = itemNode.getElementsByTagName('Cdtr')[0];
+          const idNode = cdtr
+            ?.getElementsByTagName('Id')[0]
+            ?.getElementsByTagName('OrgId')[0]
+            ?.getElementsByTagName('Othr')[0]
+            ?.getElementsByTagName('Id')[0];
+          const idText = idNode?.textContent.trim() || '';
+          return `<td>${idText}</td>`;
+        }
+        case 'CdtrAcctId': {
+          const svc = paymentNode.getElementsByTagName('SvcLvl')[0]?.textContent.trim() || '';
+          const acct = itemNode.getElementsByTagName('CdtrAcct')[0];
+          let result = '';
+          if (svc === 'SEPA') {
+            result = acct?.getElementsByTagName('IBAN')[0]?.textContent.trim() || '';
+          } else {
+            result = acct?.getElementsByTagName('Othr')[0]?.getElementsByTagName('Id')[0]?.textContent.trim() || '';
+          }
+          return `<td>${result}</td>`;
+        }
+        case 'CdtrAcctNm': {
+          const nm = itemNode.getElementsByTagName('CdtrAcct')[0]
+            ?.getElementsByTagName('Nm')[0]
+            ?.textContent.trim() || '';
+          return `<td style="text-align:left">${nm}</td>`;
+        }
+        case 'CdtrAgtId': {
+          const svc = paymentNode.getElementsByTagName('SvcLvl')[0]?.textContent.trim() || '';
+          const fin = itemNode.getElementsByTagName('CdtrAgt')[0]?.getElementsByTagName('FinInstnId')[0];
+          let result = '';
+          if (svc === 'SEPA') {
+            result = fin?.getElementsByTagName('Nm')[0]?.textContent.trim() || '';
+          } else {
+            const bicNode = fin?.getElementsByTagName('BIC')[0];
+            if (bicNode?.textContent.trim()) {
+              result = bicNode.textContent.trim();
+            } else {
+              const mmbNode = fin?.getElementsByTagName('ClrSysMmbId')[0]?.getElementsByTagName('MmbId')[0];
+              result = mmbNode?.textContent.trim() || '';
             }
-            else {
-              // === CAMT: mapeo específico ===
-              switch (col) {
+          }
+          return `<td>${result}</td>`;
+        }
+        case 'CdtrAgtName': {
+          const name = itemNode.getElementsByTagName('CdtrAgt')[0]
+            ?.getElementsByTagName('FinInstnId')[0]
+            ?.getElementsByTagName('Nm')[0]
+            ?.textContent.trim() || '';
+          return `<td>${name}</td>`;
+        }
+        case 'CdtrAgtCountry': {
+          const country = itemNode.getElementsByTagName('CdtrAgt')[0]
+            ?.getElementsByTagName('FinInstnId')[0]
+            ?.getElementsByTagName('PstlAdr')[0]
+            ?.getElementsByTagName('Ctry')[0]
+            ?.textContent.trim() || '';
+          return `<td>${country}</td>`;
+        }
+        case 'RmtInf': {
+          const arr = Array.from(itemNode.getElementsByTagName('Ustrd')).map(u => u.textContent.trim());
+          return `<td style="text-align:left">${arr.join(' | ')}</td>`;
+        }
+        default: {
+          const el = itemNode.getElementsByTagName(col)[0];
+          return `<td style="text-align:left">${el?.textContent.trim() || ''}</td>`;
+        }
+      }
+    }
+
+    function renderCamtDetailCell(it, col) {
+      switch (col) {
                 case 'Valor Operación': {
                   // toma el primer <Amt>, formatea y alinea a la derecha
                   const amtEl = it.getElementsByTagName('Amt')[0];
@@ -1537,7 +1446,31 @@
                   const tag = col.replace(/\s+/g, '');
                   const el = it.getElementsByTagName(tag)[0];
                   return `<td>${el?.textContent.trim() || ''}</td>`;
-              }
+      }
+    }
+
+    function showDetail(idx) {
+      const node = currentHeaders[idx];
+      const cols = isPain ? painDetailCols : camtDetailCols;
+
+      idxActual = idx;
+
+      let html = '<table><thead><tr><th style="text-align:center">#</th>' +
+        cols.map(c => `<th>${c}</th>`).join('') +
+        '</tr></thead><tbody>';
+
+      const items = isPain
+        ? Array.from(node.getElementsByTagName('CdtTrfTxInf'))
+        : Array.from(node.getElementsByTagName('Ntry'));
+
+      items.forEach((it, i) => {
+        html += `<tr><td>${i + 1}</td>` +
+          cols.map(col => {
+            if (isPain) {
+              return renderPainDetailCell(it, col, node);
+            }
+            else {
+              return renderCamtDetailCell(it, col);
             }
           }).join('') +
           `</tr>`;

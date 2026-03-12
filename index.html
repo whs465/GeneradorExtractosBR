@@ -54,6 +54,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- SheetJS -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="./shared.js"></script>
 </head>
 
 <body class="p-6 font-sans" style="background-color:rgb(245, 245, 247);font-family: 'Work Sans', sans-serif;">
@@ -125,7 +126,7 @@
     </div>
 
     <script>
-        const NAMESPACE = 'urn:iso:std:iso:20022:tech:xsd:camt.053.001.02';
+        const NAMESPACE = (window.GEW_SHARED && window.GEW_SHARED.NAMESPACE) || 'urn:iso:std:iso:20022:tech:xsd:camt.053.001.02';
 
         function createEl(doc, tag, text) {
             const el = doc.createElementNS(NAMESPACE, tag);
@@ -167,7 +168,20 @@
                 const wb = XLSX.read(data, { type: 'array' });
                 const sheet = wb.Sheets[wb.SheetNames[0]];
                 const rows = XLSX.utils.sheet_to_json(sheet, { raw: true });
-                if (!rows.length) return;
+                if (!rows.length) {
+                    processing.classList.add('hidden');
+                    alert('El Excel no contiene filas.');
+                    return;
+                }
+
+                const shared = window.GEW_SHARED || {};
+                const requiredCols = shared.REQUIRED_EXCEL_COLUMNS || [];
+                const missing = (shared.getMissingColumns ? shared.getMissingColumns(rows, requiredCols) : []).slice(0, 15);
+                if (missing.length) {
+                    processing.classList.add('hidden');
+                    alert('Faltan columnas requeridas en el Excel:\n- ' + missing.join('\n- ') + (missing.length >= 15 ? '\n...':''));
+                    return;
+                }
                 // Agrupar por extracto (cuenta|Moneda|Fecha Valor)
                 const groups = {};
                 rows.forEach(r => {
@@ -375,17 +389,14 @@
                 downloadLink.textContent = msgIdText;
                 downloadLink.classList.remove('hidden');
 
-                // Reiniciar estado despues dela descarga
-
-                downloadLink.addEventListener('click', () => {
+                // Reiniciar estado despues de la descarga (sin acumular listeners)
+                downloadLink.onclick = () => {
                     setTimeout(() => {
-                        // Ocultar area de resultado y limpiar input
                         result.classList.add('hidden');
                         fileInput.value = null;
-                        // Mostrar el toast con el nombre del archivo generado
                         mostrarToast(msgIdText);
                     }, 100);
-                });
+                };
             };
             reader.readAsArrayBuffer(file);
         }
