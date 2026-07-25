@@ -12,6 +12,18 @@
     'CdtrAcctNm', 'CdtrAgtId', 'CdtrAgtName', 'CdtrAgtCountry', 'RmtInf'
   ];
 
+  const pacsHeaderCols = [
+    'MsgId', 'CreDtTm', 'BtchBookg', 'NbOfTxs', 'CtrlSum', 'SttlmMtd'
+  ];
+
+  const pacsDetailCols = [
+    'EndToEndId', 'TxId', 'SvcLvl', 'LclInstrm',
+    'IntrBkSttlmAmt', 'IntrBkSttlmAmtCcy', 'IntrBkSttlmDt',
+    'DbtrId', 'DbtrIssuer', 'DbtrBranch', 'DbtrAcctId', 'DbtrAcctTp', 'DbtrAcctCcy',
+    'CdtrId', 'CdtrIssuer', 'CdtrBranch', 'CdtrAcctId', 'CdtrAcctTp', 'CdtrAcctCcy',
+    'RmtInf'
+  ];
+
   const camtHeaderCols = [
     'Cuenta', 'Extracto', 'Tipo Extracto', 'Fecha Generación', 'Fecha Inicial', 'Fecha Final',
     'constant', 'Moneda', 'Nombre Cuenta', 'Nit', 'name_tesoreria', 'branch_br',
@@ -54,6 +66,8 @@
   global.GEW_MAPPINGS = {
     painHeaderCols,
     painDetailCols,
+    pacsHeaderCols,
+    pacsDetailCols,
     camtHeaderCols,
     camtDetailCols,
     allowedHeaderColsForExport,

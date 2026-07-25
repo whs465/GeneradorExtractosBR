@@ -65,7 +65,11 @@
   function validateXmlKind(doc) {
     const hasPain = !!doc.getElementsByTagName('PmtInf').length;
     const hasCamt = !!doc.getElementsByTagName('Stmt').length;
-    return { hasPain, hasCamt, ok: hasPain || hasCamt };
+    const namespace = doc.documentElement?.namespaceURI || '';
+    const hasPacs = namespace.includes(':pacs.')
+      && !!doc.getElementsByTagName('GrpHdr').length
+      && !!doc.getElementsByTagName('CdtTrfTxInf').length;
+    return { hasPain, hasCamt, hasPacs, ok: hasPain || hasCamt || hasPacs };
   }
 
 

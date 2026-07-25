@@ -356,12 +356,14 @@
     const painDetailCols = maps.painDetailCols || [];
     const camtHeaderCols = maps.camtHeaderCols || [];
     const camtDetailCols = maps.camtDetailCols || [];
+    const pacsHeaderCols = maps.pacsHeaderCols || [];
+    const pacsDetailCols = maps.pacsDetailCols || [];
 
     const fileInput = document.getElementById('fileInput');
     const browseXmlBtn = document.getElementById('browseXmlBtn');
     const fileName = document.getElementById('fileName');
 
-    let currentHeaders = [], isPain = false;
+    let currentHeaders = [], xmlKind = '';
 
     browseXmlBtn.addEventListener('click', () => fileInput.click());
 
@@ -392,20 +394,31 @@
         : {
           hasPain: !!doc.getElementsByTagName('PmtInf').length,
           hasCamt: !!doc.getElementsByTagName('Stmt').length,
+          hasPacs: (doc.documentElement?.namespaceURI || '').includes(':pacs.')
+            && !!doc.getElementsByTagName('GrpHdr').length
+            && !!doc.getElementsByTagName('CdtTrfTxInf').length,
           ok: true
         };
     }
 
-    function setHeadersFromDocument(doc, usePain) {
-      currentHeaders = Array.from(
-        usePain
-          ? doc.getElementsByTagName('PmtInf')
-          : doc.getElementsByTagName('Stmt')
-      );
+    function setHeadersFromDocument(doc) {
+      if (xmlKind === 'pain') {
+        currentHeaders = Array.from(doc.getElementsByTagName('PmtInf'));
+        return;
+      }
+      if (xmlKind === 'camt') {
+        currentHeaders = Array.from(doc.getElementsByTagName('Stmt'));
+        return;
+      }
+
+      const groupHeaders = Array.from(doc.getElementsByTagName('GrpHdr'));
+      currentHeaders = groupHeaders.map(groupHeader => groupHeader.parentElement);
     }
 
     function renderHeaderTable() {
-      const headerCols = isPain ? painHeaderCols : camtHeaderCols;
+      const headerCols = xmlKind === 'pain'
+        ? painHeaderCols
+        : (xmlKind === 'pacs' ? pacsHeaderCols : camtHeaderCols);
       renderTable('header', headerCols, currentHeaders, showDetail);
     }
 
@@ -426,12 +439,12 @@
 
       const kind = resolveXmlKind(doc);
       if (!kind.ok) {
-        alert('XML no soportado: se esperaba estructura PAIN (PmtInf) o CAMT (Stmt).');
+        alert('XML no soportado: se esperaba estructura PAIN, CAMT o PACS.');
         return;
       }
 
-      isPain = !!kind.hasPain;
-      setHeadersFromDocument(doc, isPain);
+      xmlKind = kind.hasPacs ? 'pacs' : (kind.hasPain ? 'pain' : 'camt');
+      setHeadersFromDocument(doc);
       renderHeaderTable();
     });
 
@@ -497,6 +510,22 @@
         }
         default:
           return `<td></td>`;
+      }
+    }
+
+    function renderPacsHeaderCell(node, col) {
+      const groupHeader = node.getElementsByTagName('GrpHdr')[0];
+      switch (col) {
+        case 'MsgId':
+        case 'CreDtTm':
+        case 'BtchBookg':
+        case 'NbOfTxs':
+        case 'SttlmMtd':
+          return `<td>${getText(groupHeader, [col])}</td>`;
+        case 'CtrlSum':
+          return `<td style="text-align:right">${formatAmountCell(groupHeader?.getElementsByTagName('CtrlSum')[0])}</td>`;
+        default:
+          return '<td></td>';
       }
     }
 
@@ -863,15 +892,16 @@
         html += `<tr data-idx="${i}" class="${clase}"><td style="text-align:center">${i + 1}</td>`
           + cols.map(col => {
             // 1) Índice siempre
-            if (col === (isPain ? 'PmtInfIndex' : 'StmtIndex')) {
+            if (col === (xmlKind === 'pain' ? 'PmtInfIndex' : 'StmtIndex')) {
               return `<td>${i + 1}</td>`;
             }
-            // 2) Si es CAMT, mapeo manual de cada columna:
-            if (!isPain) {
-              return renderCamtHeaderCell(node, col, i);
-            } else {
+            if (xmlKind === 'pain') {
               return renderPainHeaderCell(node, col, i);
             }
+            if (xmlKind === 'pacs') {
+              return renderPacsHeaderCell(node, col);
+            }
+            return renderCamtHeaderCell(node, col, i);
           }).join('') +
           `</tr>`;
       });
@@ -1090,6 +1120,59 @@
           const el = itemNode.getElementsByTagName(col)[0];
           return `<td style="text-align:left">${el?.textContent.trim() || ''}</td>`;
         }
+      }
+    }
+
+    function renderPacsDetailCell(itemNode, col) {
+      const amount = itemNode.getElementsByTagName('IntrBkSttlmAmt')[0];
+      const debtor = itemNode.getElementsByTagName('Dbtr')[0];
+      const creditor = itemNode.getElementsByTagName('Cdtr')[0];
+      const debtorAccount = itemNode.getElementsByTagName('DbtrAcct')[0];
+      const creditorAccount = itemNode.getElementsByTagName('CdtrAcct')[0];
+
+      switch (col) {
+        case 'EndToEndId':
+          return `<td>${getText(itemNode, ['PmtId', 'EndToEndId'])}</td>`;
+        case 'TxId':
+          return `<td>${getText(itemNode, ['PmtId', 'TxId'])}</td>`;
+        case 'SvcLvl':
+          return `<td>${getText(itemNode, ['PmtTpInf', 'SvcLvl', 'Cd']) || getText(itemNode, ['PmtTpInf', 'SvcLvl', 'Prtry'])}</td>`;
+        case 'LclInstrm':
+          return `<td>${getText(itemNode, ['PmtTpInf', 'LclInstrm', 'Cd']) || getText(itemNode, ['PmtTpInf', 'LclInstrm', 'Prtry'])}</td>`;
+        case 'IntrBkSttlmAmt':
+          return `<td style="text-align:right">${formatAmountCell(amount)}</td>`;
+        case 'IntrBkSttlmAmtCcy':
+          return `<td>${amount?.getAttribute('Ccy') || ''}</td>`;
+        case 'IntrBkSttlmDt':
+          return `<td>${getText(itemNode, ['IntrBkSttlmDt'])}</td>`;
+        case 'DbtrId':
+          return `<td>${getText(debtor, ['FinInstnId', 'Othr', 'Id'])}</td>`;
+        case 'DbtrIssuer':
+          return `<td>${getText(debtor, ['FinInstnId', 'Othr', 'Issr'])}</td>`;
+        case 'DbtrBranch':
+          return `<td>${getText(debtor, ['BrnchId', 'Id'])}</td>`;
+        case 'DbtrAcctId':
+          return `<td>${getText(debtorAccount, ['Id', 'IBAN']) || getText(debtorAccount, ['Id', 'Othr', 'Id'])}</td>`;
+        case 'DbtrAcctTp':
+          return `<td>${getText(debtorAccount, ['Tp', 'Cd']) || getText(debtorAccount, ['Tp', 'Prtry'])}</td>`;
+        case 'DbtrAcctCcy':
+          return `<td>${getText(debtorAccount, ['Ccy'])}</td>`;
+        case 'CdtrId':
+          return `<td>${getText(creditor, ['FinInstnId', 'Othr', 'Id'])}</td>`;
+        case 'CdtrIssuer':
+          return `<td>${getText(creditor, ['FinInstnId', 'Othr', 'Issr'])}</td>`;
+        case 'CdtrBranch':
+          return `<td>${getText(creditor, ['BrnchId', 'Id'])}</td>`;
+        case 'CdtrAcctId':
+          return `<td>${getText(creditorAccount, ['Id', 'IBAN']) || getText(creditorAccount, ['Id', 'Othr', 'Id'])}</td>`;
+        case 'CdtrAcctTp':
+          return `<td>${getText(creditorAccount, ['Tp', 'Cd']) || getText(creditorAccount, ['Tp', 'Prtry'])}</td>`;
+        case 'CdtrAcctCcy':
+          return `<td>${getText(creditorAccount, ['Ccy'])}</td>`;
+        case 'RmtInf':
+          return `<td style="text-align:left">${getText(itemNode, ['RmtInf', 'Ustrd'])}</td>`;
+        default:
+          return '<td></td>';
       }
     }
 
@@ -1451,7 +1534,9 @@
 
     function showDetail(idx) {
       const node = currentHeaders[idx];
-      const cols = isPain ? painDetailCols : camtDetailCols;
+      const cols = xmlKind === 'pain'
+        ? painDetailCols
+        : (xmlKind === 'pacs' ? pacsDetailCols : camtDetailCols);
 
       idxActual = idx;
 
@@ -1459,25 +1544,28 @@
         cols.map(c => `<th>${c}</th>`).join('') +
         '</tr></thead><tbody>';
 
-      const items = isPain
-        ? Array.from(node.getElementsByTagName('CdtTrfTxInf'))
-        : Array.from(node.getElementsByTagName('Ntry'));
+      const items = xmlKind === 'camt'
+        ? Array.from(node.getElementsByTagName('Ntry'))
+        : Array.from(node.getElementsByTagName('CdtTrfTxInf'));
 
       items.forEach((it, i) => {
         html += `<tr><td>${i + 1}</td>` +
           cols.map(col => {
-            if (isPain) {
+            if (xmlKind === 'pain') {
               return renderPainDetailCell(it, col, node);
             }
-            else {
-              return renderCamtDetailCell(it, col);
+            if (xmlKind === 'pacs') {
+              return renderPacsDetailCell(it, col);
             }
+            return renderCamtDetailCell(it, col);
           }).join('') +
           `</tr>`;
       });
 
       html += '</tbody></table>';
-      const headerCols = isPain ? painHeaderCols : camtHeaderCols;
+      const headerCols = xmlKind === 'pain'
+        ? painHeaderCols
+        : (xmlKind === 'pacs' ? pacsHeaderCols : camtHeaderCols);
       renderTable('header', headerCols, currentHeaders, showDetail);
 
       document.getElementById("detail").scrollTop = 0;
