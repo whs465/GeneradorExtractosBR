@@ -158,6 +158,19 @@
 
     }
 
+    .technical-column {
+      color: inherit;
+      text-decoration: underline dotted rgba(45, 119, 194, 0.55);
+      text-underline-offset: 3px;
+      cursor: help;
+    }
+
+    .technical-column:focus-visible {
+      outline: 2px solid #2D77C2;
+      outline-offset: 3px;
+      border-radius: 2px;
+    }
+
     tr:hover {
       background: #E4F2FB;
       cursor: pointer;
@@ -453,6 +466,33 @@
 
     const getText = (node, path) => (window.GEW_SHARED?.getText ? window.GEW_SHARED.getText(node, path) : '');
     const getSvcLvl = (node) => (window.GEW_SHARED?.getSvcLvl ? window.GEW_SHARED.getSvcLvl(node) : '');
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function getColumnInfo(section, key) {
+      return maps.columnMeta?.[xmlKind]?.[section]?.[key]
+        || { label: key, path: key };
+    }
+
+    function getColumnLabel(section, key) {
+      return getColumnInfo(section, key).label;
+    }
+
+    function renderColumnHeader(section, key) {
+      const { label, path } = getColumnInfo(section, key);
+      const tooltip = path.startsWith('Descargar') ? path : `Ruta XML: ${path}`;
+      return `<th data-key="${escapeHtml(key)}">
+        <abbr class="technical-column" title="${escapeHtml(tooltip)}" tabindex="0"
+          aria-label="${escapeHtml(`${label}. ${tooltip}`)}">${escapeHtml(label)}</abbr>
+      </th>`;
+    }
 
     function renderPainHeaderCell(node, col, rowIndex) {
       switch (col) {
@@ -908,7 +948,7 @@
     function renderTable(containerId, cols, nodes, onRowClick) {
       const div = document.getElementById(containerId);
       let html = '<table><thead><tr><th>#</th>'
-        + cols.map(c => `<th>${c}</th>`).join('')
+        + cols.map(c => renderColumnHeader('header', c)).join('')
         + '</tr></thead><tbody>';
 
       nodes.forEach((node, i) => {
@@ -967,8 +1007,10 @@
       const allowedDetailCols = (maps.allowedDetailColsForExport || []).slice();
 
       // Extraer encabezados de la tabla (en pantalla)
-      const headerCols = Array.from(headerTable.querySelectorAll('thead th')).map(th => th.textContent.trim());
-      const detailCols = Array.from(detailTable.querySelectorAll('thead th')).map(th => th.textContent.trim());
+      const headerCols = Array.from(headerTable.querySelectorAll('thead th'))
+        .map(th => th.dataset.key || th.textContent.trim());
+      const detailCols = Array.from(detailTable.querySelectorAll('thead th'))
+        .map(th => th.dataset.key || th.textContent.trim());
 
       // Fila de cabecera seleccionada
       const headerRow = Array.from(headerTable.querySelectorAll('tbody tr'))[idx];
@@ -997,9 +1039,9 @@
               'Suma Cantidades', 'Total Reg Créditos', 'Total Reg Débitos'
             ].includes(col)) {
               value = value.replaceAll('.', '').replace(',', '.');
-              row[col] = parseFloat(value) || 0;
+              row[getColumnLabel('header', col)] = parseFloat(value) || 0;
             } else {
-              row[col] = value;
+              row[getColumnLabel('header', col)] = value;
             }
           }
         });
@@ -1014,9 +1056,9 @@
               'after_transaction_balance'
             ].includes(col)) {
               value = value.replaceAll('.', '').replace(',', '.');
-              row[col] = parseFloat(value) || 0;
+              row[getColumnLabel('detail', col)] = parseFloat(value) || 0;
             } else {
-              row[col] = value;
+              row[getColumnLabel('detail', col)] = value;
             }
           }
         });
@@ -1047,18 +1089,19 @@
       if (!headerTable || !detailTable) return;
 
       const headerCols = Array.from(headerTable.querySelectorAll('thead th'))
-        .map(th => th.textContent.trim());
+        .map(th => th.dataset.key || th.textContent.trim());
       const headerRow = Array.from(headerTable.querySelectorAll('tbody tr'))[idx];
       const headerData = Array.from(headerRow.querySelectorAll('td'))
         .map(td => td.textContent.trim());
       const detailCols = Array.from(detailTable.querySelectorAll('thead th'))
-        .map(th => th.textContent.trim());
+        .map(th => th.dataset.key || th.textContent.trim());
 
       const headerValues = {};
       headerCols.forEach((col, columnIndex) => {
         if (col === '#' || col === 'Exportar') return;
         const value = headerData[columnIndex] || '';
-        headerValues[col] = col === 'CtrlSum' ? parseDisplayedNumber(value) : value;
+        headerValues[getColumnLabel('header', col)] =
+          col === 'CtrlSum' ? parseDisplayedNumber(value) : value;
       });
 
       const rows = Array.from(detailTable.querySelectorAll('tbody tr')).map(detailRow => {
@@ -1069,7 +1112,8 @@
         detailCols.forEach((col, columnIndex) => {
           if (col === '#') return;
           const value = detailData[columnIndex] || '';
-          row[col] = col === 'IntrBkSttlmAmt' ? parseDisplayedNumber(value) : value;
+          row[getColumnLabel('detail', col)] =
+            col === 'IntrBkSttlmAmt' ? parseDisplayedNumber(value) : value;
         });
         return row;
       });
@@ -1626,7 +1670,7 @@
       idxActual = idx;
 
       let html = '<table><thead><tr><th style="text-align:center">#</th>' +
-        cols.map(c => `<th>${c}</th>`).join('') +
+        cols.map(c => renderColumnHeader('detail', c)).join('') +
         '</tr></thead><tbody>';
 
       const items = xmlKind === 'camt'
