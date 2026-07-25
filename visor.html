@@ -331,7 +331,7 @@
 
   <footer>
     <div class="copyright">
-      © 2025 IOB Suite <span class="heart">❤️</span> MHCP
+      © <span id="currentYear"></span> IOB Suite <span class="heart">❤️</span> MHCP
     </div>
   </footer>
 
@@ -362,6 +362,7 @@
     const fileInput = document.getElementById('fileInput');
     const browseXmlBtn = document.getElementById('browseXmlBtn');
     const fileName = document.getElementById('fileName');
+    document.getElementById('currentYear').textContent = new Date().getFullYear();
 
     let currentHeaders = [], xmlKind = '';
 
@@ -420,6 +421,7 @@
         ? painHeaderCols
         : (xmlKind === 'pacs' ? pacsHeaderCols : camtHeaderCols);
       renderTable('header', headerCols, currentHeaders, showDetail);
+      if (currentHeaders.length > 0) showDetail(0);
     }
 
     // Al cambiar el input
@@ -524,6 +526,28 @@
           return `<td>${getText(groupHeader, [col])}</td>`;
         case 'CtrlSum':
           return `<td style="text-align:right">${formatAmountCell(groupHeader?.getElementsByTagName('CtrlSum')[0])}</td>`;
+        case 'Exportar': {
+          const txCount = node.getElementsByTagName('CdtTrfTxInf').length;
+          const rowIndex = currentHeaders.indexOf(node);
+          const isActive = rowIndex === idxActual && txCount > 0;
+          const exportIcon = `
+            <svg xmlns="http://www.w3.org/2000/svg" height="20" width="20" viewBox="0 0 24 24"
+              fill="none" stroke="#217346" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>`;
+
+          return `<td style="text-align:center">
+            <button
+              ${isActive ? `onclick="event.stopPropagation(); exportarCuenta(${rowIndex})"` : ''}
+              title="${isActive ? 'Exportar PACS a Excel' : 'Selecciona el mensaje para activar'}"
+              aria-label="${isActive ? 'Exportar PACS a Excel' : 'Exportación inactiva'}"
+              style="cursor:${isActive ? 'pointer' : 'not-allowed'}; opacity:${isActive ? 1 : 0.4}; border:none; background:none; padding:0">
+              ${exportIcon}
+            </button>
+          </td>`;
+        }
         default:
           return '<td></td>';
       }
@@ -928,6 +952,11 @@
     }
 
     function exportarCuenta(idx) {
+      if (xmlKind === 'pacs') {
+        exportarPacs(idx);
+        return;
+      }
+
       const stmt = currentHeaders[idx];
       const id = stmt.getElementsByTagName('Id')[0]?.textContent?.trim() || 'SinId';
 
@@ -1001,6 +1030,62 @@
 
       XLSX.writeFile(workbook, `Extracto_${id}.xlsx`);
       mostrarToast(`Extracto_${id}.xlsx`);
+    }
+
+    function parseDisplayedNumber(value) {
+      const normalized = String(value || '').replaceAll('.', '').replace(',', '.');
+      return parseFloat(normalized) || 0;
+    }
+
+    function exportarPacs(idx) {
+      const message = currentHeaders[idx];
+      const groupHeader = message.getElementsByTagName('GrpHdr')[0];
+      const messageId = getText(groupHeader, ['MsgId']) || 'SinId';
+
+      const headerTable = document.querySelector('#header table');
+      const detailTable = document.querySelector('#detail table');
+      if (!headerTable || !detailTable) return;
+
+      const headerCols = Array.from(headerTable.querySelectorAll('thead th'))
+        .map(th => th.textContent.trim());
+      const headerRow = Array.from(headerTable.querySelectorAll('tbody tr'))[idx];
+      const headerData = Array.from(headerRow.querySelectorAll('td'))
+        .map(td => td.textContent.trim());
+      const detailCols = Array.from(detailTable.querySelectorAll('thead th'))
+        .map(th => th.textContent.trim());
+
+      const headerValues = {};
+      headerCols.forEach((col, columnIndex) => {
+        if (col === '#' || col === 'Exportar') return;
+        const value = headerData[columnIndex] || '';
+        headerValues[col] = col === 'CtrlSum' ? parseDisplayedNumber(value) : value;
+      });
+
+      const rows = Array.from(detailTable.querySelectorAll('tbody tr')).map(detailRow => {
+        const detailData = Array.from(detailRow.querySelectorAll('td'))
+          .map(td => td.textContent.trim());
+        const row = { ...headerValues };
+
+        detailCols.forEach((col, columnIndex) => {
+          if (col === '#') return;
+          const value = detailData[columnIndex] || '';
+          row[col] = col === 'IntrBkSttlmAmt' ? parseDisplayedNumber(value) : value;
+        });
+        return row;
+      });
+
+      if (!rows.length) rows.push(headerValues);
+
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Transferencias');
+
+      const safeId = messageId
+        .replace(/\.xml$/i, '')
+        .replace(/[<>:"/\\|?*]+/g, '_');
+      const outputName = `PACS_${safeId}.xlsx`;
+      XLSX.writeFile(workbook, outputName);
+      mostrarToast(outputName);
     }
 
     function mostrarToast(nombreArchivo) {

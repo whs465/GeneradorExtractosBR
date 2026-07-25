@@ -13,7 +13,7 @@
   ];
 
   const pacsHeaderCols = [
-    'MsgId', 'CreDtTm', 'BtchBookg', 'NbOfTxs', 'CtrlSum', 'SttlmMtd'
+    'MsgId', 'CreDtTm', 'BtchBookg', 'NbOfTxs', 'CtrlSum', 'SttlmMtd', 'Exportar'
   ];
 
   const pacsDetailCols = [
